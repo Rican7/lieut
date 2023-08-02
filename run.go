@@ -89,27 +89,17 @@ func (a *App) Run(ctx context.Context, arguments []string) int {
 
 	fmt.Fprintf(a.out, "Starting %s...\n", commandName)
 
-	errChan := make(chan error)
 	go func() {
-		errChan <- cmd.Executor(ctx, a.out)
+		<-ctx.Done()
+		stop()
 	}()
 
-	select {
-	case err := <-errChan:
-		returnCode := 0
-
-		if err != nil {
-			a.printErr(err, true)
-			returnCode = 1
-		}
-
-		stop()
-
-		return returnCode
-	case <-ctx.Done():
-		fmt.Fprintf(a.out, "\n\nDone.\n")
-		stop()
+	err := cmd.Executor(ctx, a.out)
+	if err != nil && !errors.Is(err, context.Canceled) {
+		return a.printErr(err, true)
 	}
+
+	fmt.Fprintf(a.out, "\n\nDone.\n")
 
 	return 0
 }
