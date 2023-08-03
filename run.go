@@ -2,6 +2,7 @@
 package run
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"flag"
@@ -22,6 +23,8 @@ type Flags interface {
 	Parse(arguments []string) error
 	Args() []string
 	PrintDefaults()
+	Output() io.Writer
+	SetOutput(output io.Writer)
 }
 
 type command struct {
@@ -32,11 +35,10 @@ type command struct {
 	flags Flags // Flags for each command
 }
 
-// App is a runnable application configuration.
-type App struct {
-	name     string
-	summary  string
-	commands map[string]command
+// app is a runnable application configuration.
+type app struct {
+	name    string
+	summary string
 
 	flags Flags // Flags for the entire app (global)
 
@@ -44,21 +46,63 @@ type App struct {
 	errOut io.Writer
 }
 
-// NewApp returns an initialized App.
-func NewApp(name string, summary string, flags Flags, out io.Writer, errOut io.Writer) *App {
-	app := &App{
-		name:     name,
-		summary:  summary,
-		commands: make(map[string]command),
+// SingleCommandApp is a runnable application that only has one command.
+type SingleCommandApp struct {
+	*app
 
-		flags: flags,
+	exec Executor
+}
 
-		out:    out,
-		errOut: errOut,
+// MultiCommandApp is a runnable application that has many commands.
+type MultiCommandApp struct {
+	*app
+
+	commands map[string]command
+}
+
+// NewSingleCommandApp returns an initialized MultiCommandApp.
+func NewSingleCommandApp(name string, summary string, exec Executor, flags Flags, out io.Writer, errOut io.Writer) *SingleCommandApp {
+	app := &SingleCommandApp{
+		app: &app{
+			name:    name,
+			summary: summary,
+
+			flags: flags,
+
+			out:    out,
+			errOut: errOut,
+		},
+
+		exec: exec,
 	}
 
 	if flags == nil {
-		app.flags = flag.CommandLine
+		app.flags = flag.NewFlagSet(name, flag.ExitOnError)
+	}
+
+	app.setUsage(flags)
+
+	return app
+}
+
+// NewMultiCommandApp returns an initialized MultiCommandApp.
+func NewMultiCommandApp(name string, summary string, flags Flags, out io.Writer, errOut io.Writer) *MultiCommandApp {
+	app := &MultiCommandApp{
+		app: &app{
+			name:    name,
+			summary: summary,
+
+			flags: flags,
+
+			out:    out,
+			errOut: errOut,
+		},
+
+		commands: make(map[string]command),
+	}
+
+	if flags == nil {
+		app.flags = flag.NewFlagSet(name, flag.ExitOnError)
 	}
 
 	app.setUsage(flags, "")
@@ -69,9 +113,9 @@ func NewApp(name string, summary string, flags Flags, out io.Writer, errOut io.W
 }
 
 // SetCommand sets a command for the given name, executor, and flags.
-func (a *App) SetCommand(name string, summary string, exec Executor, flags Flags) {
+func (a *MultiCommandApp) SetCommand(name string, summary string, exec Executor, flags Flags) {
 	if flags == nil {
-		flags = flag.CommandLine
+		flags = flag.NewFlagSet(a.fullCommandName(name), flag.ExitOnError)
 	}
 
 	if flags != a.flags {
@@ -82,7 +126,7 @@ func (a *App) SetCommand(name string, summary string, exec Executor, flags Flags
 }
 
 // CommandNames returns the names of the set commands.
-func (a *App) CommandNames() []string {
+func (a *MultiCommandApp) CommandNames() []string {
 	names := make([]string, 0, len(a.commands))
 
 	for name := range a.commands {
@@ -94,13 +138,16 @@ func (a *App) CommandNames() []string {
 
 // Run takes a context and arguments, runs the expected command, and returns an
 // exit code.
-func (a *App) Run(ctx context.Context, arguments []string) int {
-	if len(arguments) == 0 {
-		arguments = os.Args[1:]
-	}
+func (a *SingleCommandApp) Run(ctx context.Context, arguments []string) int {
+	arguments = a.initArgs(arguments)
 
-	a.flags.Parse(arguments)
-	arguments = a.flags.Args()
+	return a.execute(ctx, a.exec, arguments)
+}
+
+// Run takes a context and arguments, runs the expected command, and returns an
+// exit code.
+func (a *MultiCommandApp) Run(ctx context.Context, arguments []string) int {
+	arguments = a.initArgs(arguments)
 
 	if len(a.commands) == 0 || len(arguments) == 0 {
 		a.printUsage("")
@@ -117,6 +164,39 @@ func (a *App) Run(ctx context.Context, arguments []string) int {
 		return a.printErr(err, false)
 	}
 
+	return a.execute(ctx, cmd.Executor, arguments)
+}
+
+// PrintUsage prints the usage to the app's error output.
+//
+// It's exposed so it can be called or assigned to a flag set's usage function.
+func (a *SingleCommandApp) PrintUsage() func() {
+	return func() {
+		printCommandUsage(a.name, a.summary, a.flags, a.errOut)
+	}
+}
+
+// PrintUsage prints the usage to the app's error output.
+//
+// It's exposed so it can be called or assigned to a flag set's usage function.
+func (a *MultiCommandApp) PrintUsage(commandName string) func() {
+	return func() {
+		a.printUsage(commandName)
+	}
+}
+
+func (a *app) initArgs(arguments []string) []string {
+	if len(arguments) == 0 {
+		arguments = os.Args[1:]
+	}
+
+	a.flags.Parse(arguments)
+	arguments = a.flags.Args()
+
+	return arguments
+}
+
+func (a *app) execute(ctx context.Context, exec Executor, arguments []string) int {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 	defer stop()
 
@@ -125,7 +205,7 @@ func (a *App) Run(ctx context.Context, arguments []string) int {
 		stop()
 	}()
 
-	err := cmd.Executor(ctx, a.out)
+	err := exec(ctx, a.out)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		return a.printErr(err, true)
 	}
@@ -133,42 +213,23 @@ func (a *App) Run(ctx context.Context, arguments []string) int {
 	return 0
 }
 
-// PrintUsage prints the usage to the app's error output.
-//
-// It's exposed so it can be called or assigned to a flag set's usage function.
-func (a *App) PrintUsage(commandName string) func() {
-	return func() {
-		a.printUsage(commandName)
-	}
+// setUsage sets the `.Usage` field of the flags for a given command.
+func (a *SingleCommandApp) setUsage(flags Flags) {
+	usageReflect := reflectFlagsUsage(flags)
+	reflectFunc := reflect.ValueOf(a.PrintUsage())
+
+	usageReflect.Set(reflectFunc)
 }
 
 // setUsage sets the `.Usage` field of the flags for a given command.
-func (a *App) setUsage(flags Flags, commandName string) {
-	if flags == nil {
-		return
-	}
-
-	// TODO: Remove the use of reflection one we can use the type-system to
-	// reliably detect types with specific fields, and set them.
-	//
-	// Until then, we'll HAVE to use reflection... :(
-	flagsReflect := reflect.ValueOf(flags)
-	if flagsReflect.IsValid() && flagsReflect.Kind() == reflect.Pointer {
-		flagsReflect = flagsReflect.Elem()
-	}
-
-	usageReflect := flagsReflect.FieldByName("Usage")
-
-	if !usageReflect.IsValid() || usageReflect.Kind() != reflect.Func {
-		return
-	}
-
+func (a *MultiCommandApp) setUsage(flags Flags, commandName string) {
+	usageReflect := reflectFlagsUsage(flags)
 	reflectFunc := reflect.ValueOf(a.PrintUsage(commandName))
 
 	usageReflect.Set(reflectFunc)
 }
 
-func (a *App) printErr(err error, pad bool) int {
+func (a *app) printErr(err error, pad bool) int {
 	msgFmt := "Error: %v\n"
 
 	if pad {
@@ -180,7 +241,7 @@ func (a *App) printErr(err error, pad bool) int {
 	return 1
 }
 
-func (a *App) fullCommandName(commandName string) string {
+func (a *app) fullCommandName(commandName string) string {
 	name := a.name
 
 	if commandName != "" && commandName != "help" {
@@ -190,26 +251,20 @@ func (a *App) fullCommandName(commandName string) string {
 	return name
 }
 
-func (a *App) printUsageErr(commandName string, err error) int {
+func (a *app) printUsageErr(commandName string, err error) int {
 	fmt.Fprintf(a.errOut, "%s: %v\n", a.fullCommandName(commandName), err)
 	fmt.Fprintf(a.errOut, "Run '%s help' for usage.\n", a.name)
 
 	return 1
 }
 
-func (a *App) printUsage(commandName string) {
+func (a *MultiCommandApp) printUsage(commandName string) {
 	name := a.fullCommandName(commandName)
 	command, hasCommand := a.commands[commandName]
 
 	switch {
 	case hasCommand && commandName != "help":
-		fmt.Fprintf(a.errOut, "Usage: %s [arguments]\n\n", name)
-
-		if command.summary != "" {
-			fmt.Fprintln(a.errOut, command.summary)
-		}
-
-		command.flags.PrintDefaults()
+		printCommandUsage(name, command.summary, command.flags, a.errOut)
 	default:
 		fmt.Fprintf(a.errOut, "Usage: %s <command> [arguments]\n\n", name)
 
@@ -222,11 +277,60 @@ func (a *App) printUsage(commandName string) {
 		for _, command := range a.commands {
 			fmt.Fprintf(a.errOut, "\t%s\t%s\n", command.name, command.summary)
 		}
+
+		printFlagDefaults(a.flags)
 	}
 }
 
-func (a *App) helpExecutor(ctx context.Context, out io.Writer) error {
+func (a *MultiCommandApp) helpExecutor(ctx context.Context, out io.Writer) error {
 	a.printUsage("help")
 
 	return nil
+}
+
+func printCommandUsage(name string, summary string, flags Flags, out io.Writer) {
+	fmt.Fprintf(out, "Usage: %s [arguments]\n\n", name)
+
+	if summary != "" {
+		fmt.Fprintln(out, summary)
+	}
+
+	printFlagDefaults(flags)
+}
+
+// printFlagDefaults wraps the writing of flag default values
+func printFlagDefaults(flags Flags) {
+	var buffer bytes.Buffer
+	originalOut := flags.Output()
+
+	flags.SetOutput(&buffer)
+	flags.PrintDefaults()
+
+	if buffer.Len() > 0 {
+		// Only write a header if the printing of defaults actually wrote bytes
+		fmt.Fprintf(originalOut, "\nOptions:\n\n")
+		buffer.WriteTo(originalOut)
+	}
+
+	// Restore the original output
+	flags.SetOutput(originalOut)
+}
+
+func reflectFlagsUsage(flags Flags) *reflect.Value {
+	// TODO: Remove the use of reflection one we can use the type-system to
+	// reliably detect types with specific fields, and set them.
+	//
+	// Until then, we'll HAVE to use reflection... :(
+	flagsReflect := reflect.ValueOf(flags)
+	if flagsReflect.IsValid() && flagsReflect.Kind() == reflect.Pointer {
+		flagsReflect = flagsReflect.Elem()
+	}
+
+	usageReflect := flagsReflect.FieldByName("Usage")
+
+	if !usageReflect.IsValid() || usageReflect.Kind() != reflect.Func {
+		return nil
+	}
+
+	return &usageReflect
 }
