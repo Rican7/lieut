@@ -62,6 +62,10 @@ type MultiCommandApp struct {
 
 // NewSingleCommandApp returns an initialized MultiCommandApp.
 func NewSingleCommandApp(name string, summary string, exec Executor, flags Flags, out io.Writer, errOut io.Writer) *SingleCommandApp {
+	if flags == nil {
+		flags = flag.NewFlagSet(name, flag.ExitOnError)
+	}
+
 	app := &SingleCommandApp{
 		app: &app{
 			name:    name,
@@ -76,10 +80,6 @@ func NewSingleCommandApp(name string, summary string, exec Executor, flags Flags
 		exec: exec,
 	}
 
-	if flags == nil {
-		app.flags = flag.NewFlagSet(name, flag.ExitOnError)
-	}
-
 	app.setUsage(flags)
 
 	return app
@@ -87,6 +87,10 @@ func NewSingleCommandApp(name string, summary string, exec Executor, flags Flags
 
 // NewMultiCommandApp returns an initialized MultiCommandApp.
 func NewMultiCommandApp(name string, summary string, flags Flags, out io.Writer, errOut io.Writer) *MultiCommandApp {
+	if flags == nil {
+		flags = flag.NewFlagSet(name, flag.ExitOnError)
+	}
+
 	app := &MultiCommandApp{
 		app: &app{
 			name:    name,
@@ -99,10 +103,6 @@ func NewMultiCommandApp(name string, summary string, flags Flags, out io.Writer,
 		},
 
 		commands: make(map[string]command),
-	}
-
-	if flags == nil {
-		app.flags = flag.NewFlagSet(name, flag.ExitOnError)
 	}
 
 	app.setUsage(flags, "")
