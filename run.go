@@ -86,6 +86,8 @@ func NewSingleCommandApp(name string, summary string, exec Executor, flags Flags
 }
 
 // NewMultiCommandApp returns an initialized MultiCommandApp.
+//
+// The provided flags are global/shared among the app's commands.
 func NewMultiCommandApp(name string, summary string, flags Flags, out io.Writer, errOut io.Writer) *MultiCommandApp {
 	if flags == nil {
 		flags = flag.NewFlagSet(name, flag.ExitOnError)
@@ -113,16 +115,23 @@ func NewMultiCommandApp(name string, summary string, flags Flags, out io.Writer,
 }
 
 // SetCommand sets a command for the given name, executor, and flags.
-func (a *MultiCommandApp) SetCommand(name string, summary string, exec Executor, flags Flags) {
+//
+// It returns an error if the provided flags have already been used for another
+// command (or for the globals).
+func (a *MultiCommandApp) SetCommand(name string, summary string, exec Executor, flags Flags) error {
+	if !a.isUniqueFlagSet(flags) {
+		return errors.New("provided flags are duplicate")
+	}
+
 	if flags == nil {
 		flags = flag.NewFlagSet(a.fullCommandName(name), flag.ExitOnError)
 	}
 
-	if flags != a.flags {
-		a.setUsage(flags, name)
-	}
+	a.setUsage(flags, name)
 
 	a.commands[name] = command{name, summary, exec, flags}
+
+	return nil
 }
 
 // CommandNames returns the names of the set commands.
@@ -229,6 +238,20 @@ func (a *MultiCommandApp) setUsage(flags Flags, commandName string) {
 	usageReflect.Set(reflectFunc)
 }
 
+func (a *MultiCommandApp) isUniqueFlagSet(flags Flags) bool {
+	if flags == a.flags {
+		return false
+	}
+
+	for _, command := range a.commands {
+		if flags == command.flags {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (a *app) printErr(err error, pad bool) int {
 	msgFmt := "Error: %v\n"
 
@@ -265,6 +288,7 @@ func (a *MultiCommandApp) printUsage(commandName string) {
 	switch {
 	case hasCommand && commandName != "help":
 		printCommandUsage(name, command.summary, command.flags, a.errOut)
+		printFlagDefaults(a.flags, true)
 	default:
 		fmt.Fprintf(a.errOut, "Usage: %s <command> [arguments]\n\n", name)
 
@@ -278,7 +302,7 @@ func (a *MultiCommandApp) printUsage(commandName string) {
 			fmt.Fprintf(a.errOut, "\t%s\t%s\n", command.name, command.summary)
 		}
 
-		printFlagDefaults(a.flags)
+		printFlagDefaults(a.flags, true)
 	}
 }
 
@@ -295,11 +319,11 @@ func printCommandUsage(name string, summary string, flags Flags, out io.Writer) 
 		fmt.Fprintln(out, summary)
 	}
 
-	printFlagDefaults(flags)
+	printFlagDefaults(flags, false)
 }
 
 // printFlagDefaults wraps the writing of flag default values
-func printFlagDefaults(flags Flags) {
+func printFlagDefaults(flags Flags, asGlobal bool) {
 	var buffer bytes.Buffer
 	originalOut := flags.Output()
 
@@ -308,7 +332,14 @@ func printFlagDefaults(flags Flags) {
 
 	if buffer.Len() > 0 {
 		// Only write a header if the printing of defaults actually wrote bytes
-		fmt.Fprintf(originalOut, "\nOptions:\n\n")
+		switch asGlobal {
+		case true:
+			fmt.Fprintf(originalOut, "\nGlobal Options: (must be placed before <command>)\n\n")
+		case false:
+			fmt.Fprintf(originalOut, "\nOptions:\n\n")
+		}
+
+		// Write the buffered flag output
 		buffer.WriteTo(originalOut)
 	}
 
