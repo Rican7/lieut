@@ -209,11 +209,6 @@ func (a *app) execute(ctx context.Context, exec Executor, arguments []string) in
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 	defer stop()
 
-	go func() {
-		<-ctx.Done()
-		stop()
-	}()
-
 	err := exec(ctx, a.out)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		return a.printErr(err, true)
