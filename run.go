@@ -16,7 +16,7 @@ import (
 // Executor is a functional interface that defines an executable command.
 //
 // It takes a context, an output writer, and returns an error (if any occurred).
-type Executor func(ctx context.Context, out io.Writer) error
+type Executor func(ctx context.Context, arguments []string, out io.Writer) error
 
 // Flags defines an interface for command flags.
 type Flags interface {
@@ -44,6 +44,8 @@ type app struct {
 
 	out    io.Writer
 	errOut io.Writer
+
+	init func() error
 }
 
 // SingleCommandApp is a runnable application that only has one command.
@@ -150,6 +152,10 @@ func (a *MultiCommandApp) CommandNames() []string {
 func (a *SingleCommandApp) Run(ctx context.Context, arguments []string) int {
 	arguments = a.initArgs(arguments)
 
+	if err := a.initialize(); err != nil {
+		return a.printErr(err, false)
+	}
+
 	return a.execute(ctx, a.exec, arguments)
 }
 
@@ -173,7 +179,17 @@ func (a *MultiCommandApp) Run(ctx context.Context, arguments []string) int {
 		return a.printErr(err, false)
 	}
 
+	if err := a.initialize(); err != nil {
+		return a.printErr(err, false)
+	}
+
 	return a.execute(ctx, cmd.Executor, arguments)
+}
+
+// OnInit takes an init function that is then called after initialization and
+// before execution of a command.
+func (a *app) OnInit(init func() error) {
+	a.init = init
 }
 
 // PrintUsage prints the usage to the app's error output.
@@ -205,11 +221,19 @@ func (a *app) initArgs(arguments []string) []string {
 	return arguments
 }
 
+func (a *app) initialize() error {
+	if a.init == nil {
+		return nil
+	}
+
+	return a.init()
+}
+
 func (a *app) execute(ctx context.Context, exec Executor, arguments []string) int {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 	defer stop()
 
-	err := exec(ctx, a.out)
+	err := exec(ctx, arguments, a.out)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		return a.printErr(err, true)
 	}
@@ -301,7 +325,7 @@ func (a *MultiCommandApp) printUsage(commandName string) {
 	}
 }
 
-func (a *MultiCommandApp) helpExecutor(ctx context.Context, out io.Writer) error {
+func (a *MultiCommandApp) helpExecutor(ctx context.Context, arguments []string, out io.Writer) error {
 	a.printUsage("help")
 
 	return nil
