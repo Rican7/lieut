@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"reflect"
+	"runtime"
 )
 
 // Executor is a functional interface that defines an executable command.
@@ -35,10 +36,16 @@ type command struct {
 	flags Flags // Flags for each command
 }
 
+// AppInfo describes information about an app.
+type AppInfo struct {
+	Name    string
+	Summary string
+	Version string
+}
+
 // app is a runnable application configuration.
 type app struct {
-	name    string
-	summary string
+	info AppInfo
 
 	flags Flags // Flags for the entire app (global)
 
@@ -63,15 +70,14 @@ type MultiCommandApp struct {
 }
 
 // NewSingleCommandApp returns an initialized MultiCommandApp.
-func NewSingleCommandApp(name string, summary string, exec Executor, flags Flags, out io.Writer, errOut io.Writer) *SingleCommandApp {
+func NewSingleCommandApp(info AppInfo, exec Executor, flags Flags, out io.Writer, errOut io.Writer) *SingleCommandApp {
 	if flags == nil {
-		flags = flag.NewFlagSet(name, flag.ExitOnError)
+		flags = flag.NewFlagSet(info.Name, flag.ExitOnError)
 	}
 
 	app := &SingleCommandApp{
 		app: &app{
-			name:    name,
-			summary: summary,
+			info: info,
 
 			flags: flags,
 
@@ -90,15 +96,14 @@ func NewSingleCommandApp(name string, summary string, exec Executor, flags Flags
 // NewMultiCommandApp returns an initialized MultiCommandApp.
 //
 // The provided flags are global/shared among the app's commands.
-func NewMultiCommandApp(name string, summary string, flags Flags, out io.Writer, errOut io.Writer) *MultiCommandApp {
+func NewMultiCommandApp(info AppInfo, flags Flags, out io.Writer, errOut io.Writer) *MultiCommandApp {
 	if flags == nil {
-		flags = flag.NewFlagSet(name, flag.ExitOnError)
+		flags = flag.NewFlagSet(info.Name, flag.ExitOnError)
 	}
 
 	app := &MultiCommandApp{
 		app: &app{
-			name:    name,
-			summary: summary,
+			info: info,
 
 			flags: flags,
 
@@ -165,7 +170,7 @@ func (a *MultiCommandApp) Run(ctx context.Context, arguments []string) int {
 	arguments = a.initArgs(arguments)
 
 	if len(a.commands) == 0 || len(arguments) == 0 {
-		a.printUsage("")
+		a.PrintHelp("")
 		return 2
 	}
 
@@ -192,22 +197,27 @@ func (a *app) OnInit(init func() error) {
 	a.init = init
 }
 
-// PrintUsage prints the usage to the app's error output.
-//
-// It's exposed so it can be called or assigned to a flag set's usage function.
-func (a *SingleCommandApp) PrintUsage() func() {
-	return func() {
-		printCommandUsage(a.name, a.summary, a.flags, a.errOut)
-	}
+// PrintVersion prints the version to the app's standard output.
+func (a *app) PrintVersion() {
+	a.printVersion(false)
 }
 
-// PrintUsage prints the usage to the app's error output.
+// PrintHelp prints the usage to the app's error output.
 //
 // It's exposed so it can be called or assigned to a flag set's usage function.
-func (a *MultiCommandApp) PrintUsage(commandName string) func() {
-	return func() {
-		a.printUsage(commandName)
-	}
+func (a *SingleCommandApp) PrintHelp() {
+	printCommandUsage(a.info.Name, a.info.Summary, a.flags, a.errOut)
+	fmt.Fprintln(a.errOut)
+	a.printVersion(true)
+}
+
+// PrintHelp prints the usage to the app's error output.
+//
+// It's exposed so it can be called or assigned to a flag set's usage function.
+func (a *MultiCommandApp) PrintHelp(commandName string) {
+	a.printUsage(commandName)
+	fmt.Fprintln(a.errOut)
+	a.printVersion(true)
 }
 
 func (a *app) initArgs(arguments []string) []string {
@@ -244,7 +254,7 @@ func (a *app) execute(ctx context.Context, exec Executor, arguments []string) in
 // setUsage sets the `.Usage` field of the flags for a given command.
 func (a *SingleCommandApp) setUsage(flags Flags) {
 	usageReflect := reflectFlagsUsage(flags)
-	reflectFunc := reflect.ValueOf(a.PrintUsage())
+	reflectFunc := reflect.ValueOf(a.PrintHelp)
 
 	usageReflect.Set(reflectFunc)
 }
@@ -252,7 +262,7 @@ func (a *SingleCommandApp) setUsage(flags Flags) {
 // setUsage sets the `.Usage` field of the flags for a given command.
 func (a *MultiCommandApp) setUsage(flags Flags, commandName string) {
 	usageReflect := reflectFlagsUsage(flags)
-	reflectFunc := reflect.ValueOf(a.PrintUsage(commandName))
+	reflectFunc := reflect.ValueOf(func() { a.PrintHelp(commandName) })
 
 	usageReflect.Set(reflectFunc)
 }
@@ -284,7 +294,7 @@ func (a *app) printErr(err error, pad bool) int {
 }
 
 func (a *app) fullCommandName(commandName string) string {
-	name := a.name
+	name := a.info.Name
 
 	if commandName != "" && commandName != "help" {
 		name = fmt.Sprintf("%s %s", name, commandName)
@@ -293,9 +303,23 @@ func (a *app) fullCommandName(commandName string) string {
 	return name
 }
 
+func (a *app) printVersion(toErr bool) {
+	out := a.out
+	if toErr {
+		out = a.errOut
+	}
+
+	identifier := a.info.Name
+	if a.info.Version != "" {
+		identifier = fmt.Sprintf("%s %s", identifier, a.info.Version)
+	}
+
+	fmt.Fprintf(out, "%s (%s/%s)\n", identifier, runtime.GOOS, runtime.GOARCH)
+}
+
 func (a *app) printUsageErr(commandName string, err error) int {
 	fmt.Fprintf(a.errOut, "%s: %v\n", a.fullCommandName(commandName), err)
-	fmt.Fprintf(a.errOut, "Run '%s help' for usage.\n", a.name)
+	fmt.Fprintf(a.errOut, "Run '%s help' for usage.\n", a.info.Name)
 
 	return 1
 }
@@ -311,8 +335,8 @@ func (a *MultiCommandApp) printUsage(commandName string) {
 	default:
 		fmt.Fprintf(a.errOut, "Usage: %s <command> [arguments]\n\n", name)
 
-		if a.summary != "" {
-			fmt.Fprintln(a.errOut, a.summary)
+		if a.info.Summary != "" {
+			fmt.Fprintln(a.errOut, a.info.Summary)
 		}
 
 		fmt.Fprintf(a.errOut, "\nCommands:\n\n")
@@ -326,7 +350,7 @@ func (a *MultiCommandApp) printUsage(commandName string) {
 }
 
 func (a *MultiCommandApp) helpExecutor(ctx context.Context, arguments []string, out io.Writer) error {
-	a.printUsage("help")
+	a.PrintHelp("help")
 
 	return nil
 }
