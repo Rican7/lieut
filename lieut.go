@@ -1,11 +1,11 @@
+// Copyright © 2023 Trevor N. Suarez (Rican7)
+
 // Package lieut provides mechanisms to standardize command line app execution.
 //
 // Lieut, short for lieutenant, or "second-in-command" to a commander.
 //
 // An opinionated, feature-limited, no external dependency, "micro-framework"
 // for building command line applications in Go.
-//
-// Copyright © 2023 Trevor N. Suarez (Rican7)
 package lieut
 
 import (
