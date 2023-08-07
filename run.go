@@ -1,4 +1,7 @@
 // Package run provides mechanisms to standardize command app execution.
+//
+// TODO: Possibly extract and open-source this as the package "lieut" (short for
+// lieutenant, or "second-in-command" to a commander: lieutenant commander).
 package run
 
 import (
@@ -27,7 +30,8 @@ const (
 
 // Executor is a functional interface that defines an executable command.
 //
-// It takes a context, an output writer, and returns an error (if any occurred).
+// It takes a context, arguments, an output writer, and returns an error (if any
+// occurred).
 type Executor func(ctx context.Context, arguments []string, out io.Writer) error
 
 // Flags defines an interface for command flags.
