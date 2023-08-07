@@ -4,6 +4,8 @@
 //
 // An opinionated, feature-limited, no external dependency, "micro-framework"
 // for building command line applications in Go.
+//
+// Copyright © 2023 Trevor N. Suarez (Rican7)
 package lieut
 
 import (

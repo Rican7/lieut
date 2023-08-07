@@ -1,3 +1,6 @@
+// Package lieut (see lieut.go for package doc)
+//
+// Copyright © 2023 Trevor N. Suarez (Rican7)
 package lieut
 
 import (
