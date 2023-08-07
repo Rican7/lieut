@@ -10,8 +10,19 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"reflect"
 	"runtime"
+	"strings"
+)
+
+const (
+	// DefaultCommandUsage defines the default usage string for commands.
+	DefaultCommandUsage = "[arguments]"
+
+	// DefaultParentCommandUsage defines the default usage string for commands
+	// that have sub-commands.
+	DefaultParentCommandUsage = "<command> [arguments]"
 )
 
 // Executor is a functional interface that defines an executable command.
@@ -51,9 +62,15 @@ type flagSet struct {
 	requestedVersion bool
 }
 
+// CommandInfo describes information about a command.
+type CommandInfo struct {
+	Name    string
+	Summary string
+	Usage   string
+}
+
 type command struct {
-	name    string
-	summary string
+	info CommandInfo
 	Executor
 
 	flags *flagSet // Flags for each command
@@ -63,6 +80,7 @@ type command struct {
 type AppInfo struct {
 	Name    string
 	Summary string
+	Usage   string
 	Version string
 }
 
@@ -92,8 +110,16 @@ type MultiCommandApp struct {
 	commands map[string]command
 }
 
-// NewSingleCommandApp returns an initialized MultiCommandApp.
+// NewSingleCommandApp returns an initialized SingleCommandApp.
 func NewSingleCommandApp(info AppInfo, exec Executor, flags Flags, out io.Writer, errOut io.Writer) *SingleCommandApp {
+	if info.Name == "" {
+		info.Name = inferAppName()
+	}
+
+	if info.Usage == "" {
+		info.Usage = DefaultCommandUsage
+	}
+
 	if flags == nil {
 		flags = flag.NewFlagSet(info.Name, flag.ContinueOnError)
 	}
@@ -123,6 +149,14 @@ func NewSingleCommandApp(info AppInfo, exec Executor, flags Flags, out io.Writer
 //
 // The provided flags are global/shared among the app's commands.
 func NewMultiCommandApp(info AppInfo, flags Flags, out io.Writer, errOut io.Writer) *MultiCommandApp {
+	if info.Name == "" {
+		info.Name = inferAppName()
+	}
+
+	if info.Usage == "" {
+		info.Usage = DefaultParentCommandUsage
+	}
+
 	if flags == nil {
 		flags = flag.NewFlagSet(info.Name, flag.ContinueOnError)
 	}
@@ -148,25 +182,29 @@ func NewMultiCommandApp(info AppInfo, flags Flags, out io.Writer, errOut io.Writ
 	return app
 }
 
-// SetCommand sets a command for the given name, executor, and flags.
+// SetCommand sets a command for the given info, executor, and flags.
 //
 // It returns an error if the provided flags have already been used for another
 // command (or for the globals).
-func (a *MultiCommandApp) SetCommand(name string, summary string, exec Executor, flags Flags) error {
+func (a *MultiCommandApp) SetCommand(info CommandInfo, exec Executor, flags Flags) error {
+	if info.Usage == "" {
+		info.Usage = DefaultCommandUsage
+	}
+
 	if !a.isUniqueFlagSet(flags) {
 		return errors.New("provided flags are duplicate")
 	}
 
 	if flags == nil {
-		flags = flag.NewFlagSet(name, flag.ContinueOnError)
+		flags = flag.NewFlagSet(info.Name, flag.ContinueOnError)
 	}
 
 	flagSet := &flagSet{Flags: flags}
 
 	a.setupFlagSet(flagSet)
-	a.setUsage(flagSet, name)
+	a.setUsage(flagSet, info.Name)
 
-	a.commands[name] = command{name, summary, exec, flagSet}
+	a.commands[info.Name] = command{info: info, Executor: exec, flags: flagSet}
 
 	return nil
 }
@@ -259,38 +297,51 @@ func (a *app) PrintVersion() {
 	a.printVersion(false)
 }
 
-// PrintHelp prints the usage to the app's error output.
+// PrintHelp prints the help info to the app's error output.
 //
 // It's exposed so it can be called or assigned to a flag set's usage function.
 func (a *SingleCommandApp) PrintHelp() {
-	a.printCommandUsage(a.info.Name, a.info.Summary, a.flags)
+	a.printFullUsage()
 	fmt.Fprintln(a.errOut)
 	a.printVersion(true)
 }
 
-// PrintHelp prints the usage to the app's error output.
+// PrintHelp prints the help info to the app's error output.
 //
 // It's exposed so it can be called or assigned to a flag set's usage function.
 func (a *MultiCommandApp) PrintHelp(commandName string) {
-	a.printUsage(commandName)
+	a.printFullUsage(commandName)
 	fmt.Fprintln(a.errOut)
 	a.printVersion(true)
+}
+
+// PrintUsage prints the usage to the app's error output.
+func (a *app) PrintUsage() {
+	fmt.Fprintf(a.errOut, "Usage: %s %s\n\n", a.info.Name, a.info.Usage)
+}
+
+// PrintUsage prints the usage to the app's error output.
+func (a *MultiCommandApp) PrintUsage(commandName string) {
+	name := a.fullCommandName(commandName)
+	command, hasCommand := a.commands[commandName]
+
+	if !hasCommand {
+		a.app.PrintUsage()
+	}
+
+	fmt.Fprintf(a.errOut, "Usage: %s %s\n\n", name, command.info.Usage)
 }
 
 // PrintUsageError prints a standardized usage error to the app's error output.
 func (a *SingleCommandApp) PrintUsageError(err error) {
 	name := a.info.Name
-
-	fmt.Fprintf(a.errOut, "%s: %v\n", name, err)
-	fmt.Fprintf(a.errOut, "Run '%s --help' for usage.\n", name)
+	a.printUsageError(name, err)
 }
 
 // PrintUsageError prints a standardized usage error to the app's error output.
 func (a *MultiCommandApp) PrintUsageError(commandName string, err error) {
 	name := a.fullCommandName(commandName)
-
-	fmt.Fprintf(a.errOut, "%s: %v\n", name, err)
-	fmt.Fprintf(a.errOut, "Run '%s --help' for usage.\n", name)
+	a.printUsageError(name, err)
 }
 
 func (a *app) intercept(flagSet *flagSet) bool {
@@ -421,11 +472,12 @@ func (a *app) printErr(err error, pad bool) int {
 	return 1
 }
 
-func (a *app) fullCommandName(commandName string) string {
+func (a *MultiCommandApp) fullCommandName(commandName string) string {
 	name := a.info.Name
+	command, hasCommand := a.commands[commandName]
 
-	if commandName != "" {
-		name = fmt.Sprintf("%s %s", name, commandName)
+	if hasCommand {
+		name = fmt.Sprintf("%s %s", name, command.info.Name)
 	}
 
 	return name
@@ -445,21 +497,41 @@ func (a *app) printVersion(toErr bool) {
 	fmt.Fprintf(out, "%s (%s/%s)\n", identifier, runtime.GOOS, runtime.GOARCH)
 }
 
+func (a *app) printUsageError(name string, err error) {
+	fmt.Fprintf(a.errOut, "%s: %v\n", name, err)
+	fmt.Fprintf(a.errOut, "Run '%s --help' for usage.\n", name)
+}
+
 func (a *MultiCommandApp) printUnknownCommand(commandName string) int {
-	a.PrintUsageError("", fmt.Errorf("unknown command '%s'", commandName))
+	a.printUsageError(a.info.Name, fmt.Errorf("unknown command '%s'", commandName))
 
 	return 1
 }
 
-func (a *MultiCommandApp) printUsage(commandName string) {
-	name := a.fullCommandName(commandName)
+func (a *SingleCommandApp) printFullUsage() {
+	a.PrintUsage()
+
+	if a.info.Summary != "" {
+		fmt.Fprintln(a.errOut, a.info.Summary)
+	}
+
+	a.printFlagDefaults(a.flags)
+}
+
+func (a *MultiCommandApp) printFullUsage(commandName string) {
 	command, hasCommand := a.commands[commandName]
 
 	switch {
 	case hasCommand:
-		a.printCommandUsage(name, command.summary, command.flags)
+		a.PrintUsage(commandName)
+
+		if command.info.Summary != "" {
+			fmt.Fprintln(a.errOut, command.info.Summary)
+		}
+
+		a.printFlagDefaults(command.flags)
 	default:
-		fmt.Fprintf(a.errOut, "Usage: %s <command> [arguments]\n\n", name)
+		a.PrintUsage("")
 
 		if a.info.Summary != "" {
 			fmt.Fprintln(a.errOut, a.info.Summary)
@@ -468,7 +540,7 @@ func (a *MultiCommandApp) printUsage(commandName string) {
 		fmt.Fprintf(a.errOut, "\nCommands:\n\n")
 
 		for _, command := range a.commands {
-			fmt.Fprintf(a.errOut, "\t%s\t%s\n", command.name, command.summary)
+			fmt.Fprintf(a.errOut, "\t%s\t%s\n", command.info.Name, command.info.Summary)
 		}
 
 		a.printFlagDefaults(a.flags)
@@ -476,16 +548,6 @@ func (a *MultiCommandApp) printUsage(commandName string) {
 }
 
 // printFlagDefaults wraps the writing of flag default values
-func (a *app) printCommandUsage(name string, summary string, flags Flags) {
-	fmt.Fprintf(a.errOut, "Usage: %s [arguments]\n\n", name)
-
-	if summary != "" {
-		fmt.Fprintln(a.errOut, summary)
-	}
-
-	a.printFlagDefaults(flags)
-}
-
 func (a *app) printFlagDefaults(flags Flags) {
 	var buffer bytes.Buffer
 	originalOut := a.errOut
@@ -503,6 +565,13 @@ func (a *app) printFlagDefaults(flags Flags) {
 
 	// Restore the original output
 	flags.SetOutput(originalOut)
+}
+
+func inferAppName() string {
+	basename := filepath.Base(os.Args[0])
+	extension := filepath.Ext(basename)
+
+	return strings.TrimSuffix(basename, extension)
 }
 
 func reflectFlagsUsage(flagSet *flagSet) *reflect.Value {
