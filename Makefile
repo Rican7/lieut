@@ -11,7 +11,7 @@ GO_CLEAN_FLAGS ?= -i -r -x ${GO_BUILD_FLAGS}
 
 # Tool flags
 GOFUMPT_FLAGS ?=
-GOLINT_MIN_CONFIDENCE ?= 0.1
+GOLINT_MIN_CONFIDENCE ?= 0.3
 
 # Set the mode for code-coverage
 GO_TEST_COVERAGE_MODE ?= count
