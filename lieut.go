@@ -290,7 +290,7 @@ func (a *MultiCommandApp) PrintHelp(commandName string) {
 
 // PrintUsage prints the usage to the app's error output.
 func (a *app) PrintUsage() {
-	fmt.Fprintf(a.errOut, "Usage: %s %s\n\n", a.info.Name, a.info.Usage)
+	fmt.Fprintf(a.errOut, "Usage: %s %s\n", a.info.Name, a.info.Usage)
 }
 
 // PrintUsage prints the usage to the app's error output.
@@ -300,9 +300,10 @@ func (a *MultiCommandApp) PrintUsage(commandName string) {
 
 	if !hasCommand {
 		a.app.PrintUsage()
+		return
 	}
 
-	fmt.Fprintf(a.errOut, "Usage: %s %s\n\n", name, command.info.Usage)
+	fmt.Fprintf(a.errOut, "Usage: %s %s\n", name, command.info.Usage)
 }
 
 // PrintUsageError prints a standardized usage error to the app's error output.
@@ -416,6 +417,7 @@ func (a *SingleCommandApp) printFullUsage() {
 	a.PrintUsage()
 
 	if a.info.Summary != "" {
+		fmt.Fprintln(a.errOut)
 		fmt.Fprintln(a.errOut, a.info.Summary)
 	}
 
@@ -430,6 +432,7 @@ func (a *MultiCommandApp) printFullUsage(commandName string) {
 		a.PrintUsage(commandName)
 
 		if command.info.Summary != "" {
+			fmt.Fprintln(a.errOut)
 			fmt.Fprintln(a.errOut, command.info.Summary)
 		}
 
@@ -438,6 +441,7 @@ func (a *MultiCommandApp) printFullUsage(commandName string) {
 		a.PrintUsage("")
 
 		if a.info.Summary != "" {
+			fmt.Fprintln(a.errOut)
 			fmt.Fprintln(a.errOut, a.info.Summary)
 		}
 
