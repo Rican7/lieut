@@ -20,23 +20,37 @@ Use a tagged version or vendor this dependency if you plan on using it.
 ## Example
 
 ```go
-do := func(ctx context.Context, arguments []string, out io.Writer) error {
-	_, err := fmt.Fprintln(out, arguments)
+package main
 
-	return err
-}
+import (
+	"context"
+	"flag"
+	"fmt"
+	"io"
+	"os"
 
-app := lieut.NewSingleCommandApp(
-	lieut.AppInfo{Name: "example"},
-	do,
-	flag.CommandLine,
-	os.Stdout,
-	os.Stderr,
+	"github.com/Rican7/lieut"
 )
 
-exitCode := app.Run(context.Background(), os.Args[1:])
+func main() {
+	do := func(ctx context.Context, arguments []string, out io.Writer) error {
+		_, err := fmt.Fprintln(out, arguments)
 
-os.Exit(exitCode)
+		return err
+	}
+
+	app := lieut.NewSingleCommandApp(
+		lieut.AppInfo{Name: "example"},
+		do,
+		flag.CommandLine,
+		os.Stdout,
+		os.Stderr,
+	)
+
+	exitCode := app.Run(context.Background(), os.Args[1:])
+
+	os.Exit(exitCode)
+}
 ```
 
 For more examples, see [the documentation](https://pkg.go.dev/github.com/Rican7/lieut).
