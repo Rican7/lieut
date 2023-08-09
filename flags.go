@@ -102,12 +102,12 @@ func (a *MultiCommandApp) setUsage(flagSet *flagSet, commandName string) {
 }
 
 func (a *MultiCommandApp) isUniqueFlagSet(flags Flags) bool {
-	if flags == a.flags {
+	if flags == a.flags.Flags {
 		return false
 	}
 
 	for _, command := range a.commands {
-		if flags == command.flags {
+		if flags == command.flags.Flags {
 			return false
 		}
 	}
