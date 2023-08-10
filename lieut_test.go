@@ -336,3 +336,139 @@ func TestMultiCommandApp_PrintUsage(t *testing.T) {
 		})
 	}
 }
+
+func TestSingleCommandApp_PrintHelp(t *testing.T) {
+	wantFormat := `Usage: test testing
+
+A test
+
+Options:
+
+  -help
+    	Display the help message
+  -testflag string
+    	A test flag (default "testval")
+  -version
+    	Display the application version
+
+test vTest (%s/%s)
+`
+	want := fmt.Sprintf(wantFormat, runtime.GOOS, runtime.GOARCH)
+
+	var buf bytes.Buffer
+
+	flagSet := flag.NewFlagSet(testAppInfo.Name, flag.ExitOnError)
+	flagSet.String("testflag", "testval", "A test flag")
+
+	app := NewSingleCommandApp(testAppInfo, testNoOpExecutor, flagSet, &buf, &buf)
+
+	app.PrintHelp()
+
+	got := buf.String()
+
+	if got != want {
+		t.Errorf("app.PrintHelp gave %q, want %q", got, want)
+	}
+}
+
+func TestMultiCommandApp_PrintHelp(t *testing.T) {
+	wantFormat := `Usage: test testing
+
+A test
+
+Commands:
+
+	testcommand	A test command
+
+Options:
+
+  -help
+    	Display the help message
+  -testflag string
+    	A test flag (default "testval")
+  -version
+    	Display the application version
+
+test vTest (%s/%s)
+`
+	want := fmt.Sprintf(wantFormat, runtime.GOOS, runtime.GOARCH)
+
+	var buf bytes.Buffer
+
+	flagSet := flag.NewFlagSet(testAppInfo.Name, flag.ExitOnError)
+	flagSet.String("testflag", "testval", "A test flag")
+
+	app := NewMultiCommandApp(testAppInfo, flagSet, &buf, &buf)
+
+	testCommandInfo := CommandInfo{
+		Name:    "testcommand",
+		Summary: "A test command",
+		Usage:   "args here...",
+	}
+
+	commandFlagSet := flag.NewFlagSet(testCommandInfo.Name, flag.ExitOnError)
+	commandFlagSet.Int("testcommandflag", 5, "A test command flag")
+
+	err := app.SetCommand(testCommandInfo, testNoOpExecutor, commandFlagSet)
+	if err != nil {
+		t.Fatalf("SetCommand returned error: %v", err)
+	}
+
+	app.PrintHelp("")
+
+	got := buf.String()
+
+	if got != want {
+		t.Errorf("app.PrintHelp gave %q, want %q", got, want)
+	}
+}
+
+func TestMultiCommandApp_PrintHelp_Command(t *testing.T) {
+	wantFormat := `Usage: test testcommand args here...
+
+A test command
+
+Options:
+
+  -help
+    	Display the help message
+  -testcommandflag int
+    	A test command flag (default 5)
+  -testflag string
+    	A test flag (default "testval")
+  -version
+    	Display the application version
+
+test vTest (%s/%s)
+`
+	want := fmt.Sprintf(wantFormat, runtime.GOOS, runtime.GOARCH)
+
+	var buf bytes.Buffer
+
+	flagSet := flag.NewFlagSet(testAppInfo.Name, flag.ExitOnError)
+	flagSet.String("testflag", "testval", "A test flag")
+
+	app := NewMultiCommandApp(testAppInfo, flagSet, &buf, &buf)
+
+	testCommandInfo := CommandInfo{
+		Name:    "testcommand",
+		Summary: "A test command",
+		Usage:   "args here...",
+	}
+
+	commandFlagSet := flag.NewFlagSet(testCommandInfo.Name, flag.ExitOnError)
+	commandFlagSet.Int("testcommandflag", 5, "A test command flag")
+
+	err := app.SetCommand(testCommandInfo, testNoOpExecutor, commandFlagSet)
+	if err != nil {
+		t.Fatalf("SetCommand returned error: %v", err)
+	}
+
+	app.PrintHelp("testcommand")
+
+	got := buf.String()
+
+	if got != want {
+		t.Errorf("app.PrintHelp gave %q, want %q", got, want)
+	}
+}
