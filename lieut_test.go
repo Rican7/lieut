@@ -3,6 +3,7 @@ package lieut
 import (
 	"bytes"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -21,6 +22,23 @@ var testAppInfo = AppInfo{
 
 var testNoOpExecutor = func(ctx context.Context, arguments []string, out io.Writer) error {
 	return nil
+}
+
+func TestMain(m *testing.M) {
+	originalOSArgs := os.Args[:]
+	defer func() {
+		// Put back the original args... to not mess with global state
+		os.Args = originalOSArgs
+	}()
+
+	// Parse the flags, as the testing package needs them
+	flag.Parse()
+
+	// Set the args to just the executable name
+	// (removing passed flags to the test executable)
+	os.Args = os.Args[0:1]
+
+	os.Exit(m.Run())
 }
 
 func TestNewSingleCommandApp(t *testing.T) {
@@ -530,6 +548,145 @@ func TestSingleCommandApp_Run(t *testing.T) {
 	}
 }
 
+func TestSingleCommandApp_Run_EmptyArgsProvided(t *testing.T) {
+	var capturedArgs []string
+
+	executor := func(ctx context.Context, arguments []string, out io.Writer) error {
+		capturedArgs = arguments
+		return nil
+	}
+
+	flagSet := flag.NewFlagSet(testAppInfo.Name, flag.ExitOnError)
+	out := io.Discard
+
+	app := NewSingleCommandApp(testAppInfo, executor, flagSet, out, out)
+
+	originalOSArgs := os.Args[:]
+	defer func() {
+		// Put back the original args... to not mess with global state
+		os.Args = originalOSArgs
+	}()
+
+	os.Args = []string{testAppInfo.Name, "arg"}
+	expectedArgs := os.Args[1:]
+
+	if exitCode := app.Run(context.TODO(), nil); exitCode != 0 {
+		t.Errorf("app.Run gave non-zero exit code %q", exitCode)
+	}
+
+	if capturedArgs[0] != expectedArgs[0] {
+		t.Errorf("app.Run executor gave args %q, wanted %q", capturedArgs, expectedArgs)
+	}
+}
+
+func TestSingleCommandApp_Run_AltPaths(t *testing.T) {
+	for testName, testData := range map[string]struct {
+		exec  Executor
+		init  func() error
+		flags Flags
+
+		args []string
+
+		wantedExitCode int
+		wantedOut      string
+		wantedErrOut   string
+	}{
+		"version requested": {
+			args: []string{"--version"},
+
+			wantedExitCode: 0,
+			wantedOut:      fmt.Sprintf("test vTest (%s/%s)\n", runtime.GOOS, runtime.GOARCH),
+			wantedErrOut:   "",
+		},
+		"help requested": {
+			args: []string{"--help"},
+
+			wantedExitCode: 0,
+			wantedOut:      "",
+			wantedErrOut: fmt.Sprintf(`Usage: test testing
+
+A test
+
+Options:
+
+  -help
+    	Display the help message
+  -version
+    	Display the application version
+
+test vTest (%s/%s)
+`, runtime.GOOS, runtime.GOARCH),
+		},
+		"args contain non-defined flags": {
+			flags: flag.NewFlagSet("test", flag.ContinueOnError),
+			args:  []string{"--non-existent-flag=val"},
+
+			wantedExitCode: 1,
+			wantedOut:      "",
+			wantedErrOut: fmt.Sprintf(`flag provided but not defined: -non-existent-flag
+Usage: test testing
+
+A test
+
+Options:
+
+  -help
+    	Display the help message
+  -version
+    	Display the application version
+
+test vTest (%s/%s)
+`, runtime.GOOS, runtime.GOARCH),
+		},
+		"initialize returns error": {
+			init: func() error {
+				return errors.New("test init error")
+			},
+
+			args: []string{"test"},
+
+			wantedExitCode: 1,
+			wantedOut:      "",
+			wantedErrOut:   "Error: test init error\n",
+		},
+		"execute returns error": {
+			exec: func(ctx context.Context, arguments []string, out io.Writer) error {
+				return errors.New("test exec error")
+			},
+
+			args: []string{"test"},
+
+			wantedExitCode: 1,
+			wantedOut:      "",
+			wantedErrOut:   "\nError: test exec error\n",
+		},
+	} {
+		t.Run(testName, func(t *testing.T) {
+			var out, errOut bytes.Buffer
+
+			app := NewSingleCommandApp(testAppInfo, testData.exec, testData.flags, &out, &errOut)
+
+			if testData.init != nil {
+				app.OnInit(testData.init)
+			}
+
+			exitCode := app.Run(context.TODO(), testData.args)
+
+			if exitCode != testData.wantedExitCode {
+				t.Errorf("app.Run gave %q, wanted %q", exitCode, testData.wantedExitCode)
+			}
+
+			if out.String() != testData.wantedOut {
+				t.Errorf("app.Run gave out %q, wanted %q", out.String(), testData.wantedOut)
+			}
+
+			if errOut.String() != testData.wantedErrOut {
+				t.Errorf("app.Run gave errOut %q, wanted %q", errOut.String(), testData.wantedErrOut)
+			}
+		})
+	}
+}
+
 func TestMultiCommandApp_Run(t *testing.T) {
 	flagSet := flag.NewFlagSet(testAppInfo.Name, flag.ExitOnError)
 	out := io.Discard
@@ -588,5 +745,229 @@ func TestMultiCommandApp_Run(t *testing.T) {
 
 	if executorCapture.out != out {
 		t.Errorf("app.Run executor gave %q, wanted %q", executorCapture.out, out)
+	}
+}
+
+func TestMultiCommandApp_Run_EmptyArgsProvided(t *testing.T) {
+	flagSet := flag.NewFlagSet(testAppInfo.Name, flag.ExitOnError)
+	out := io.Discard
+
+	app := NewMultiCommandApp(testAppInfo, flagSet, out, out)
+
+	testCommandInfo := CommandInfo{Name: "testcommand"}
+
+	var capturedArgs []string
+	executor := func(ctx context.Context, arguments []string, out io.Writer) error {
+		capturedArgs = arguments
+		return nil
+	}
+
+	commandFlagSet := flag.NewFlagSet(testCommandInfo.Name, flag.ExitOnError)
+
+	app.SetCommand(testCommandInfo, executor, commandFlagSet)
+
+	originalOSArgs := os.Args[:]
+	defer func() {
+		// Put back the original args... to not mess with global state
+		os.Args = originalOSArgs
+	}()
+
+	os.Args = []string{testAppInfo.Name, testCommandInfo.Name, "arg"}
+	expectedArgs := os.Args[2:]
+
+	if exitCode := app.Run(context.TODO(), nil); exitCode != 0 {
+		t.Errorf("app.Run gave non-zero exit code %q", exitCode)
+	}
+
+	if capturedArgs[0] != expectedArgs[0] {
+		t.Errorf("app.Run executor gave args %q, wanted %q", capturedArgs, expectedArgs)
+	}
+}
+
+func TestMultiCommandApp_Run_AltPaths(t *testing.T) {
+	testCommandInfo := CommandInfo{
+		Name:    "testcommand",
+		Summary: "A test command",
+		Usage:   "args here...",
+	}
+
+	for testName, testData := range map[string]struct {
+		flags        Flags
+		exec         Executor
+		commandFlags Flags
+		init         func() error
+
+		args []string
+
+		wantedExitCode int
+		wantedOut      string
+		wantedErrOut   string
+	}{
+		"version requested": {
+			args: []string{"--version"},
+
+			wantedExitCode: 0,
+			wantedOut:      fmt.Sprintf("test vTest (%s/%s)\n", runtime.GOOS, runtime.GOARCH),
+			wantedErrOut:   "",
+		},
+		"help requested": {
+			args: []string{"--help"},
+
+			wantedExitCode: 0,
+			wantedOut:      "",
+			wantedErrOut: fmt.Sprintf(`Usage: test testing
+
+A test
+
+Commands:
+
+	testcommand	A test command
+
+Options:
+
+  -help
+    	Display the help message
+  -version
+    	Display the application version
+
+test vTest (%s/%s)
+`, runtime.GOOS, runtime.GOARCH),
+		},
+		"command help requested": {
+			args: []string{testCommandInfo.Name, "--help"},
+
+			wantedExitCode: 0,
+			wantedOut:      "",
+			wantedErrOut: fmt.Sprintf(`Usage: test testcommand args here...
+
+A test command
+
+Options:
+
+  -help
+    	Display the help message
+  -version
+    	Display the application version
+
+test vTest (%s/%s)
+`, runtime.GOOS, runtime.GOARCH),
+		},
+		"empty args": {
+			args: []string{},
+
+			wantedExitCode: 2,
+			wantedOut:      "",
+			wantedErrOut: fmt.Sprintf(`Usage: test testing
+
+A test
+
+Commands:
+
+	testcommand	A test command
+
+Options:
+
+  -help
+    	Display the help message
+  -version
+    	Display the application version
+
+test vTest (%s/%s)
+`, runtime.GOOS, runtime.GOARCH),
+		},
+		"args contain non-defined flags": {
+			flags: flag.NewFlagSet("test", flag.ContinueOnError),
+			args:  []string{"--non-existent-flag=val"},
+
+			wantedExitCode: 1,
+			wantedOut:      "",
+			wantedErrOut: fmt.Sprintf(`flag provided but not defined: -non-existent-flag
+Usage: test testing
+
+A test
+
+Commands:
+
+	testcommand	A test command
+
+Options:
+
+  -help
+    	Display the help message
+  -version
+    	Display the application version
+
+test vTest (%s/%s)
+`, runtime.GOOS, runtime.GOARCH),
+		},
+		"initialize returns error": {
+			init: func() error {
+				return errors.New("test init error")
+			},
+
+			args: []string{testCommandInfo.Name},
+
+			wantedExitCode: 1,
+			wantedOut:      "",
+			wantedErrOut:   "Error: test init error\n",
+		},
+		"execute returns error": {
+			exec: func(ctx context.Context, arguments []string, out io.Writer) error {
+				return errors.New("test exec error")
+			},
+
+			args: []string{testCommandInfo.Name},
+
+			wantedExitCode: 1,
+			wantedOut:      "",
+			wantedErrOut:   "\nError: test exec error\n",
+		},
+		"unknown command": {
+			args: []string{"thiscommanddoesnotexist"},
+
+			wantedExitCode: 1,
+			wantedOut:      "",
+			wantedErrOut:   "test: unknown command 'thiscommanddoesnotexist'\nRun 'test --help' for usage.\n",
+		},
+		"unknown command is known flag": {
+			flags: func() Flags {
+				flags := flag.NewFlagSet("test", flag.ContinueOnError)
+
+				flags.Bool("testflag", false, "some test flag")
+
+				return flags
+			}(),
+			args: []string{"--testflag"},
+
+			wantedExitCode: 1,
+			wantedOut:      "",
+			wantedErrOut:   "test: unknown command '--testflag'\nRun 'test --help' for usage.\n",
+		},
+	} {
+		t.Run(testName, func(t *testing.T) {
+			var out, errOut bytes.Buffer
+
+			app := NewMultiCommandApp(testAppInfo, testData.flags, &out, &errOut)
+
+			app.SetCommand(testCommandInfo, testData.exec, testData.commandFlags)
+
+			if testData.init != nil {
+				app.OnInit(testData.init)
+			}
+
+			exitCode := app.Run(context.TODO(), testData.args)
+
+			if exitCode != testData.wantedExitCode {
+				t.Errorf("app.Run gave %q, wanted %q", exitCode, testData.wantedExitCode)
+			}
+
+			if out.String() != testData.wantedOut {
+				t.Errorf("app.Run gave out %q, wanted %q", out.String(), testData.wantedOut)
+			}
+
+			if errOut.String() != testData.wantedErrOut {
+				t.Errorf("app.Run gave errOut %q, wanted %q", errOut.String(), testData.wantedErrOut)
+			}
+		})
 	}
 }
