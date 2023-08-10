@@ -51,6 +51,7 @@ test-with-coverage-profile:
 	go test -covermode ${GO_TEST_COVERAGE_MODE} -coverprofile ${GO_TEST_COVERAGE_FILE_NAME} ./...
 
 format-lint:
+	$(info ${GOBIN}/gofumpt -l ${GOFUMPT_FLAGS} .)
 	@errors=$$(${GOBIN}/gofumpt -l ${GOFUMPT_FLAGS} .); if [ "$${errors}" != "" ]; then echo "Format lint failed on:\n$${errors}\n"; exit 1; fi
 
 style-lint: install-deps-dev
