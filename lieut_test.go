@@ -235,126 +235,6 @@ func TestMultiCommandApp_PrintVersion(t *testing.T) {
 	}
 }
 
-func TestSingleCommandApp_PrintUsage(t *testing.T) {
-	for testName, testData := range map[string]struct {
-		usage string
-		want  string
-	}{
-		"specified": {
-			usage: "testing [test]",
-			want:  fmt.Sprintf("Usage: %s testing [test]\n", testAppInfo.Name),
-		},
-		"no usage string": {
-			usage: "",
-			want:  fmt.Sprintf("Usage: %s %s\n", testAppInfo.Name, DefaultCommandUsage),
-		},
-	} {
-		t.Run(testName, func(t *testing.T) {
-			appInfo := testAppInfo
-			appInfo.Usage = testData.usage
-			var buf bytes.Buffer
-
-			flagSet := flag.NewFlagSet(testAppInfo.Name, flag.ExitOnError)
-			app := NewSingleCommandApp(appInfo, testNoOpExecutor, flagSet, &buf, &buf)
-
-			app.PrintUsage()
-
-			got := buf.String()
-
-			if got != testData.want {
-				t.Errorf("app.PrintUsage gave %q, want %q", got, testData.want)
-			}
-		})
-	}
-}
-
-func TestMultiCommandApp_PrintUsage(t *testing.T) {
-	testCommandInfo := CommandInfo{
-		Name:    "test",
-		Summary: "testing",
-	}
-
-	for testName, testData := range map[string]struct {
-		appUsage     string
-		commandUsage string
-		forCommand   string
-		want         string
-	}{
-		"specified app and command usage, for command": {
-			appUsage:     "testing [test]",
-			commandUsage: "test [opts]",
-			forCommand:   testCommandInfo.Name,
-			want:         fmt.Sprintf("Usage: %s %s test [opts]\n", testAppInfo.Name, testCommandInfo.Name),
-		},
-		"specified app usage, no command usage, for command": {
-			appUsage:     "testing [test]",
-			commandUsage: "",
-			forCommand:   testCommandInfo.Name,
-			want:         fmt.Sprintf("Usage: %s %s %s\n", testAppInfo.Name, testCommandInfo.Name, DefaultCommandUsage),
-		},
-		"no app usage, specified command usage, for command": {
-			appUsage:     "",
-			commandUsage: "test [opts]",
-			forCommand:   testCommandInfo.Name,
-			want:         fmt.Sprintf("Usage: %s %s test [opts]\n", testAppInfo.Name, testCommandInfo.Name),
-		},
-		"no app or command usage, for command": {
-			appUsage:     "",
-			commandUsage: "",
-			forCommand:   testCommandInfo.Name,
-			want:         fmt.Sprintf("Usage: %s %s %s\n", testAppInfo.Name, testCommandInfo.Name, DefaultCommandUsage),
-		},
-		"specified app and command usage, no command": {
-			appUsage:     "testing [test]",
-			commandUsage: "test [opts]",
-			forCommand:   "",
-			want:         fmt.Sprintf("Usage: %s testing [test]\n", testAppInfo.Name),
-		},
-		"specified app usage, no command usage, no command": {
-			appUsage:     "testing [test]",
-			commandUsage: "",
-			forCommand:   "",
-			want:         fmt.Sprintf("Usage: %s testing [test]\n", testAppInfo.Name),
-		},
-		"no app usage, specified command usage, no command": {
-			appUsage:     "",
-			commandUsage: "test [opts]",
-			forCommand:   "",
-			want:         fmt.Sprintf("Usage: %s %s\n", testAppInfo.Name, DefaultParentCommandUsage),
-		},
-		"no app or command usage, no command": {
-			appUsage:     "",
-			commandUsage: "",
-			forCommand:   "",
-			want:         fmt.Sprintf("Usage: %s %s\n", testAppInfo.Name, DefaultParentCommandUsage),
-		},
-	} {
-		t.Run(testName, func(t *testing.T) {
-			appInfo := testAppInfo
-			appInfo.Usage = testData.appUsage
-			var buf bytes.Buffer
-
-			flagSet := flag.NewFlagSet(testAppInfo.Name, flag.ExitOnError)
-			app := NewMultiCommandApp(appInfo, flagSet, &buf, &buf)
-
-			testCommandInfo.Usage = testData.commandUsage
-			commandFlagSet := flag.NewFlagSet(testAppInfo.Name, flag.ExitOnError)
-			err := app.SetCommand(testCommandInfo, testNoOpExecutor, commandFlagSet)
-			if err != nil {
-				t.Errorf("SetCommand returned error: %v", err)
-			}
-
-			app.PrintUsage(testData.forCommand)
-
-			got := buf.String()
-
-			if got != testData.want {
-				t.Errorf("app.PrintUsage gave %q, want %q", got, testData.want)
-			}
-		})
-	}
-}
-
 func TestSingleCommandApp_PrintHelp(t *testing.T) {
 	wantFormat := `Usage: test testing
 
@@ -488,6 +368,189 @@ test vTest (%s/%s)
 
 	if got != want {
 		t.Errorf("app.PrintHelp gave %q, want %q", got, want)
+	}
+}
+
+func TestSingleCommandApp_PrintUsage(t *testing.T) {
+	for testName, testData := range map[string]struct {
+		usage string
+		want  string
+	}{
+		"specified": {
+			usage: "testing [test]",
+			want:  fmt.Sprintf("Usage: %s testing [test]\n", testAppInfo.Name),
+		},
+		"no usage string": {
+			usage: "",
+			want:  fmt.Sprintf("Usage: %s %s\n", testAppInfo.Name, DefaultCommandUsage),
+		},
+	} {
+		t.Run(testName, func(t *testing.T) {
+			appInfo := testAppInfo
+			appInfo.Usage = testData.usage
+			var buf bytes.Buffer
+
+			flagSet := flag.NewFlagSet(testAppInfo.Name, flag.ExitOnError)
+			app := NewSingleCommandApp(appInfo, testNoOpExecutor, flagSet, &buf, &buf)
+
+			app.PrintUsage()
+
+			got := buf.String()
+
+			if got != testData.want {
+				t.Errorf("app.PrintUsage gave %q, want %q", got, testData.want)
+			}
+		})
+	}
+}
+
+func TestMultiCommandApp_PrintUsage(t *testing.T) {
+	testCommandInfo := CommandInfo{
+		Name:    "test",
+		Summary: "testing",
+	}
+
+	for testName, testData := range map[string]struct {
+		appUsage     string
+		commandUsage string
+		forCommand   string
+		want         string
+	}{
+		"specified app and command usage, for command": {
+			appUsage:     "testing [test]",
+			commandUsage: "test [opts]",
+			forCommand:   testCommandInfo.Name,
+			want:         fmt.Sprintf("Usage: %s %s test [opts]\n", testAppInfo.Name, testCommandInfo.Name),
+		},
+		"specified app usage, no command usage, for command": {
+			appUsage:     "testing [test]",
+			commandUsage: "",
+			forCommand:   testCommandInfo.Name,
+			want:         fmt.Sprintf("Usage: %s %s %s\n", testAppInfo.Name, testCommandInfo.Name, DefaultCommandUsage),
+		},
+		"no app usage, specified command usage, for command": {
+			appUsage:     "",
+			commandUsage: "test [opts]",
+			forCommand:   testCommandInfo.Name,
+			want:         fmt.Sprintf("Usage: %s %s test [opts]\n", testAppInfo.Name, testCommandInfo.Name),
+		},
+		"no app or command usage, for command": {
+			appUsage:     "",
+			commandUsage: "",
+			forCommand:   testCommandInfo.Name,
+			want:         fmt.Sprintf("Usage: %s %s %s\n", testAppInfo.Name, testCommandInfo.Name, DefaultCommandUsage),
+		},
+		"specified app and command usage, no command": {
+			appUsage:     "testing [test]",
+			commandUsage: "test [opts]",
+			forCommand:   "",
+			want:         fmt.Sprintf("Usage: %s testing [test]\n", testAppInfo.Name),
+		},
+		"specified app usage, no command usage, no command": {
+			appUsage:     "testing [test]",
+			commandUsage: "",
+			forCommand:   "",
+			want:         fmt.Sprintf("Usage: %s testing [test]\n", testAppInfo.Name),
+		},
+		"no app usage, specified command usage, no command": {
+			appUsage:     "",
+			commandUsage: "test [opts]",
+			forCommand:   "",
+			want:         fmt.Sprintf("Usage: %s %s\n", testAppInfo.Name, DefaultParentCommandUsage),
+		},
+		"no app or command usage, no command": {
+			appUsage:     "",
+			commandUsage: "",
+			forCommand:   "",
+			want:         fmt.Sprintf("Usage: %s %s\n", testAppInfo.Name, DefaultParentCommandUsage),
+		},
+	} {
+		t.Run(testName, func(t *testing.T) {
+			appInfo := testAppInfo
+			appInfo.Usage = testData.appUsage
+			var buf bytes.Buffer
+
+			flagSet := flag.NewFlagSet(testAppInfo.Name, flag.ExitOnError)
+			app := NewMultiCommandApp(appInfo, flagSet, &buf, &buf)
+
+			testCommandInfo.Usage = testData.commandUsage
+			commandFlagSet := flag.NewFlagSet(testAppInfo.Name, flag.ExitOnError)
+			err := app.SetCommand(testCommandInfo, testNoOpExecutor, commandFlagSet)
+			if err != nil {
+				t.Errorf("SetCommand returned error: %v", err)
+			}
+
+			app.PrintUsage(testData.forCommand)
+
+			got := buf.String()
+
+			if got != testData.want {
+				t.Errorf("app.PrintUsage gave %q, want %q", got, testData.want)
+			}
+		})
+	}
+}
+
+func TestSingleCommandApp_PrintUsageError(t *testing.T) {
+	var buf bytes.Buffer
+
+	flagSet := flag.NewFlagSet(testAppInfo.Name, flag.ExitOnError)
+	app := NewSingleCommandApp(testAppInfo, testNoOpExecutor, flagSet, &buf, &buf)
+
+	usageErr := errors.New("test usage error")
+	want := `test: test usage error
+Run 'test --help' for usage.
+`
+
+	app.PrintUsageError(usageErr)
+
+	got := buf.String()
+
+	if got != want {
+		t.Errorf("app.PrintVersion gave %q, want %q", got, want)
+	}
+}
+
+func TestMultiCommandApp_PrintUsageError(t *testing.T) {
+	var buf bytes.Buffer
+
+	flagSet := flag.NewFlagSet(testAppInfo.Name, flag.ExitOnError)
+	app := NewMultiCommandApp(testAppInfo, flagSet, &buf, &buf)
+
+	usageErr := errors.New("test usage error")
+	want := `test: test usage error
+Run 'test --help' for usage.
+`
+
+	app.PrintUsageError("", usageErr)
+
+	got := buf.String()
+
+	if got != want {
+		t.Errorf("app.PrintVersion gave %q, want %q", got, want)
+	}
+}
+
+func TestMultiCommandApp_PrintUsageError_Command(t *testing.T) {
+	var buf bytes.Buffer
+
+	flagSet := flag.NewFlagSet(testAppInfo.Name, flag.ExitOnError)
+	app := NewMultiCommandApp(testAppInfo, flagSet, &buf, &buf)
+
+	testCommandInfo := CommandInfo{Name: "testcommand"}
+	app.SetCommand(testCommandInfo, nil, nil)
+
+	usageErr := errors.New("test usage error")
+	want := `test testcommand: test usage error
+Run 'test testcommand --help' for usage.
+`
+
+	app.PrintUsageError(testCommandInfo.Name, usageErr)
+
+	got := buf.String()
+
+	if got != want {
+		t.Errorf("app.PrintVersion gave %q, want %q", got, want)
 	}
 }
 
