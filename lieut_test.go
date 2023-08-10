@@ -472,3 +472,121 @@ test vTest (%s/%s)
 		t.Errorf("app.PrintHelp gave %q, want %q", got, want)
 	}
 }
+
+func TestSingleCommandApp_Run(t *testing.T) {
+	var executorCapture struct {
+		ctx       context.Context
+		arguments []string
+		out       io.Writer
+	}
+
+	executor := func(ctx context.Context, arguments []string, out io.Writer) error {
+		executorCapture.ctx = ctx
+		executorCapture.arguments = arguments
+		executorCapture.out = out
+
+		return nil
+	}
+
+	flagSet := flag.NewFlagSet(testAppInfo.Name, flag.ExitOnError)
+	out := io.Discard
+
+	app := NewSingleCommandApp(testAppInfo, executor, flagSet, out, out)
+
+	ctxTestKey := struct{ k string }{k: "test-key-for-testing"}
+	ctxTestVal := "test context val"
+	ctx := context.WithValue(context.TODO(), ctxTestKey, ctxTestVal)
+	args := []string{"testarg1", "testarg2"}
+	wantedExitCode := 0
+
+	initRan := false
+	initFn := func() error {
+		initRan = true
+		return nil
+	}
+
+	app.OnInit(initFn)
+
+	exitCode := app.Run(ctx, args)
+
+	if exitCode != wantedExitCode {
+		t.Errorf("app.Run gave %q, wanted %q", exitCode, wantedExitCode)
+	}
+
+	if !initRan {
+		t.Error("app.Run didn't run init function")
+	}
+
+	if executorCapture.ctx.Value(ctxTestKey) != ctxTestVal {
+		t.Errorf("app.Run executor gave %q, wanted %q", executorCapture.ctx.Value(ctxTestKey), ctxTestVal)
+	}
+
+	if executorCapture.arguments[0] != args[0] && executorCapture.arguments[1] != args[1] {
+		t.Errorf("app.Run executor gave %q, wanted %q", executorCapture.arguments, args)
+	}
+
+	if executorCapture.out != out {
+		t.Errorf("app.Run executor gave %q, wanted %q", executorCapture.out, out)
+	}
+}
+
+func TestMultiCommandApp_Run(t *testing.T) {
+	flagSet := flag.NewFlagSet(testAppInfo.Name, flag.ExitOnError)
+	out := io.Discard
+
+	app := NewMultiCommandApp(testAppInfo, flagSet, out, out)
+
+	testCommandInfo := CommandInfo{Name: "testcommand"}
+
+	var executorCapture struct {
+		ctx       context.Context
+		arguments []string
+		out       io.Writer
+	}
+	executor := func(ctx context.Context, arguments []string, out io.Writer) error {
+		executorCapture.ctx = ctx
+		executorCapture.arguments = arguments
+		executorCapture.out = out
+
+		return nil
+	}
+	commandFlagSet := flag.NewFlagSet(testCommandInfo.Name, flag.ExitOnError)
+
+	app.SetCommand(testCommandInfo, executor, commandFlagSet)
+
+	ctxTestKey := struct{ k string }{k: "test-key-for-testing"}
+	ctxTestVal := "test context val"
+	ctx := context.WithValue(context.TODO(), ctxTestKey, ctxTestVal)
+	args := []string{testCommandInfo.Name, "testarg1", "testarg2"}
+	wantedExitCode := 0
+
+	initRan := false
+	initFn := func() error {
+		initRan = true
+		return nil
+	}
+
+	app.OnInit(initFn)
+
+	exitCode := app.Run(ctx, args)
+
+	if exitCode != wantedExitCode {
+		t.Errorf("app.Run gave %q, wanted %q", exitCode, wantedExitCode)
+	}
+
+	if !initRan {
+		t.Error("app.Run didn't run init function")
+	}
+
+	if executorCapture.ctx.Value(ctxTestKey) != ctxTestVal {
+		t.Errorf("app.Run executor gave %q, wanted %q", executorCapture.ctx.Value(ctxTestKey), ctxTestVal)
+	}
+
+	if executorCapture.arguments[0] != args[1] && executorCapture.arguments[1] != args[2] {
+		t.Errorf("app.Run executor gave %q, wanted %q", executorCapture.arguments, args)
+	}
+
+	if executorCapture.out != out {
+		t.Errorf("app.Run executor gave %q, wanted %q", executorCapture.out, out)
+	}
+}
