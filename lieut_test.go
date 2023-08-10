@@ -37,7 +37,7 @@ func TestNewSingleCommandApp_ZeroValues(t *testing.T) {
 	app := NewSingleCommandApp(AppInfo{}, nil, nil, nil, nil)
 
 	if app == nil {
-		t.Error("NewSingleCommandApp returned nil")
+		t.Fatal("NewSingleCommandApp returned nil")
 	}
 
 	if inferredName := inferAppName(); app.info.Name != inferredName {
@@ -67,7 +67,7 @@ func TestNewMultiCommandApp_ZeroValues(t *testing.T) {
 	app := NewMultiCommandApp(AppInfo{}, nil, nil, nil)
 
 	if app == nil {
-		t.Error("NewMultiCommandApp returned nil")
+		t.Fatal("NewMultiCommandApp returned nil")
 	}
 
 	if inferredName := inferAppName(); app.info.Name != inferredName {
