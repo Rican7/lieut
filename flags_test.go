@@ -24,6 +24,11 @@ func (b *bogusFlags) PrintDefaults() {
 func (b *bogusFlags) SetOutput(output io.Writer) {
 }
 
+// Provide method that's used by "pflag" libraries (like github.com/spf13/pflag)
+// to validate that it's at least called in the interface checks.
+func (b *bogusFlags) BoolVarP(p *bool, name string, shorthand string, value bool, usage string) {
+}
+
 func TestBogusFlags_WorkWithSingleCommandApps(t *testing.T) {
 	flagSet := &bogusFlags{id: "global"}
 	out := io.Discard
