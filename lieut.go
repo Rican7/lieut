@@ -22,11 +22,11 @@ import (
 
 const (
 	// DefaultCommandUsage defines the default usage string for commands.
-	DefaultCommandUsage = "[arguments]"
+	DefaultCommandUsage = "[arguments ...]"
 
 	// DefaultParentCommandUsage defines the default usage string for commands
 	// that have sub-commands.
-	DefaultParentCommandUsage = "<command> [arguments]"
+	DefaultParentCommandUsage = "<command> [arguments ...]"
 )
 
 // Executor is a functional interface that defines an executable command.
