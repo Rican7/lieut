@@ -6,7 +6,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 
@@ -36,11 +35,11 @@ func Example_singleCommand() {
 	os.Exit(exitCode)
 }
 
-func sayHello(ctx context.Context, arguments []string, out io.Writer) error {
+func sayHello(ctx context.Context, arguments []string) error {
 	names := strings.Join(arguments, ", ")
 	hello := fmt.Sprintf("Hello %s!", names)
 
-	_, err := fmt.Fprintln(out, hello)
+	_, err := fmt.Println(hello)
 
 	return err
 }

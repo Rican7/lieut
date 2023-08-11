@@ -20,7 +20,7 @@ var testAppInfo = AppInfo{
 	Version: "vTest",
 }
 
-var testNoOpExecutor = func(ctx context.Context, arguments []string, out io.Writer) error {
+var testNoOpExecutor = func(ctx context.Context, arguments []string) error {
 	return nil
 }
 
@@ -568,13 +568,11 @@ func TestSingleCommandApp_Run(t *testing.T) {
 	var executorCapture struct {
 		ctx       context.Context
 		arguments []string
-		out       io.Writer
 	}
 
-	executor := func(ctx context.Context, arguments []string, out io.Writer) error {
+	executor := func(ctx context.Context, arguments []string) error {
 		executorCapture.ctx = ctx
 		executorCapture.arguments = arguments
-		executorCapture.out = out
 
 		return nil
 	}
@@ -615,16 +613,12 @@ func TestSingleCommandApp_Run(t *testing.T) {
 	if executorCapture.arguments[0] != args[0] && executorCapture.arguments[1] != args[1] {
 		t.Errorf("app.Run executor gave %q, wanted %q", executorCapture.arguments, args)
 	}
-
-	if executorCapture.out != out {
-		t.Errorf("app.Run executor gave %q, wanted %q", executorCapture.out, out)
-	}
 }
 
 func TestSingleCommandApp_Run_EmptyArgsProvided(t *testing.T) {
 	var capturedArgs []string
 
-	executor := func(ctx context.Context, arguments []string, out io.Writer) error {
+	executor := func(ctx context.Context, arguments []string) error {
 		capturedArgs = arguments
 		return nil
 	}
@@ -723,7 +717,7 @@ test vTest (%s/%s)
 			wantedErrOut:   "Error: test init error\n",
 		},
 		"execute returns error": {
-			exec: func(ctx context.Context, arguments []string, out io.Writer) error {
+			exec: func(ctx context.Context, arguments []string) error {
 				return errors.New("test exec error")
 			},
 
@@ -771,12 +765,10 @@ func TestMultiCommandApp_Run(t *testing.T) {
 	var executorCapture struct {
 		ctx       context.Context
 		arguments []string
-		out       io.Writer
 	}
-	executor := func(ctx context.Context, arguments []string, out io.Writer) error {
+	executor := func(ctx context.Context, arguments []string) error {
 		executorCapture.ctx = ctx
 		executorCapture.arguments = arguments
-		executorCapture.out = out
 
 		return nil
 	}
@@ -815,10 +807,6 @@ func TestMultiCommandApp_Run(t *testing.T) {
 	if executorCapture.arguments[0] != args[1] && executorCapture.arguments[1] != args[2] {
 		t.Errorf("app.Run executor gave %q, wanted %q", executorCapture.arguments, args)
 	}
-
-	if executorCapture.out != out {
-		t.Errorf("app.Run executor gave %q, wanted %q", executorCapture.out, out)
-	}
 }
 
 func TestMultiCommandApp_Run_EmptyArgsProvided(t *testing.T) {
@@ -830,7 +818,7 @@ func TestMultiCommandApp_Run_EmptyArgsProvided(t *testing.T) {
 	testCommandInfo := CommandInfo{Name: "testcommand"}
 
 	var capturedArgs []string
-	executor := func(ctx context.Context, arguments []string, out io.Writer) error {
+	executor := func(ctx context.Context, arguments []string) error {
 		capturedArgs = arguments
 		return nil
 	}
@@ -985,7 +973,7 @@ test vTest (%s/%s)
 			wantedErrOut:   "Error: test init error\n",
 		},
 		"execute returns error": {
-			exec: func(ctx context.Context, arguments []string, out io.Writer) error {
+			exec: func(ctx context.Context, arguments []string) error {
 				return errors.New("test exec error")
 			},
 

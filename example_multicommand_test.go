@@ -6,7 +6,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"time"
 
@@ -63,26 +62,26 @@ func validateGlobals() error {
 	return err
 }
 
-func printTime(ctx context.Context, arguments []string, out io.Writer) error {
+func printTime(ctx context.Context, arguments []string) error {
 	format := "15:04"
 
 	if includeSeconds {
 		format += ":05"
 	}
 
-	_, err := fmt.Fprintln(out, time.Now().Format(format))
+	_, err := fmt.Println(time.Now().Format(format))
 
 	return err
 }
 
-func printDate(ctx context.Context, arguments []string, out io.Writer) error {
+func printDate(ctx context.Context, arguments []string) error {
 	format := "01-02"
 
 	if includeYear {
 		format += "-2006"
 	}
 
-	_, err := fmt.Fprintln(out, time.Now().Format(format))
+	_, err := fmt.Println(time.Now().Format(format))
 
 	return err
 }

@@ -31,9 +31,8 @@ const (
 
 // Executor is a functional interface that defines an executable command.
 //
-// It takes a context, arguments, an output writer, and returns an error (if any
-// occurred).
-type Executor func(ctx context.Context, arguments []string, out io.Writer) error
+// It takes a context and arguments, and returns an error (if any occurred).
+type Executor func(ctx context.Context, arguments []string) error
 
 // CommandInfo describes information about a command.
 type CommandInfo struct {
@@ -357,7 +356,7 @@ func (a *app) execute(ctx context.Context, exec Executor, arguments []string) in
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 	defer stop()
 
-	err := exec(ctx, arguments, a.out)
+	err := exec(ctx, arguments)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		return a.printErr(err, true)
 	}

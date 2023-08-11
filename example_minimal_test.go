@@ -6,15 +6,14 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 
 	"github.com/Rican7/lieut"
 )
 
 func Example_minimal() {
-	do := func(ctx context.Context, arguments []string, out io.Writer) error {
-		_, err := fmt.Fprintln(out, arguments)
+	do := func(ctx context.Context, arguments []string) error {
+		_, err := fmt.Println(arguments)
 
 		return err
 	}
