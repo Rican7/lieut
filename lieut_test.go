@@ -106,6 +106,12 @@ func TestMultiCommandApp_SetCommand(t *testing.T) {
 
 	app := NewMultiCommandApp(testAppInfo, flagSet, os.Stdout, os.Stderr)
 
+	includedCommandFlagSet := flag.NewFlagSet("included", flag.ExitOnError)
+	err := app.SetCommand(CommandInfo{Name: "included"}, nil, includedCommandFlagSet)
+	if err != nil {
+		t.Fatalf("SetCommand returned error: %v", err)
+	}
+
 	for testName, testData := range map[string]struct {
 		info    CommandInfo
 		exec    Executor
@@ -135,8 +141,12 @@ func TestMultiCommandApp_SetCommand(t *testing.T) {
 			flags: flag.NewFlagSet(testAppInfo.Name, flag.ExitOnError),
 		},
 		"zero values": {},
-		"duplicate flags": {
+		"duplicate flags from globals": {
 			flags:   flagSet,
+			wantErr: true,
+		},
+		"duplicate flags from other command": {
+			flags:   includedCommandFlagSet,
 			wantErr: true,
 		},
 	} {
