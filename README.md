@@ -20,6 +20,8 @@ That being said, [the `flag` package in the standard library](https://pkg.go.dev
 
 The goal of this project is to get some of those quirks out of the way (or at least work WITH them in ways that reduce the surprises in behavior) and reduce the typical "setup" code that a command line application needs, all while working with the standard library, to expand upon it's capabilities rather than locking your application into a tree of external/third-party dependencies.
 
+_"Wait, what? Why not just use 'x' or 'y'?"_ [Don't worry, I've got you covered.](#wait-what-why-not-just-use-x-or-y)
+
 
 ## Project Status
 
@@ -77,3 +79,18 @@ func main() {
 ```
 
 For more examples, see [the documentation](https://pkg.go.dev/github.com/Rican7/lieut).
+
+
+## Wait, what? Why not just use "x" or "y"?
+
+If you're reading this, you're probably thinking of an alternative solution or wondering why someone would choose this library over another. Well, I'm not here to convince you, but if you're curious, read on.
+
+I've tried using many of the popular libraries ([cobra](https://github.com/spf13/cobra), [kingpin](https://github.com/alecthomas/kingpin), [urfave/cli](https://github.com/urfave/cli), etc), and they all suffer from one of the following problems:
+
+ - They're large in scope and attempt to solve too many problems, generically.
+ - They use external/third-party dependencies.
+ - They don't work well directly with the standard library.
+ - They've been abandoned (practically, if not directly).
+	 - (This would be less of a concern if it weren't for the fact that they're LARGE in scope, so it's harder to just own yourself if the source rots).
+
+If none of that matters to you, then that's fine, but they were enough of a concern for me to spend a few days extracting this package's behaviors from another project and making it reusable. 🙂
