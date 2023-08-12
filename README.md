@@ -4,7 +4,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/Rican7/lieut/badge.svg)](https://coveralls.io/github/Rican7/lieut)
 [![Go Report Card](https://goreportcard.com/badge/Rican7/lieut)](http://goreportcard.com/report/Rican7/lieut)
 [![Go Reference](https://pkg.go.dev/badge/github.com/Rican7/lieut.svg)](https://pkg.go.dev/github.com/Rican7/lieut)
-<!--[![Latest Stable Version](https://img.shields.io/github/release/Rican7/lieut.svg?style=flat)](https://github.com/Rican7/lieut/releases)-->
+[![Latest Stable Version](https://img.shields.io/github/release/Rican7/lieut.svg?style=flat)](https://github.com/Rican7/lieut/releases)
 
 _Lieut, short for lieutenant, or "second-in-command" to a commander._
 
