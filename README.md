@@ -18,7 +18,7 @@ I prefer using Go's extensive standard library, and when that doesn't quite prov
 
 That being said, [the `flag` package in the standard library](https://pkg.go.dev/flag) leaves a lot to be desired, and unfortunately acts far less like a library and much more like a framework (it's library code [that calls `os.Exit()`](https://github.com/golang/go/blob/go1.21.0/src/flag/flag.go#L1168-L1171)... 😕😖). It defines a lot of higher-level application behaviors than typically expected, and those can be a little surprising.
 
-The goal of this project is to get some of those quirks out of the way (or at least work WITH them in ways that reduce the surprises in behavior) and reduce the typical "setup" code that a command line application needs, all while working with the standard library, to expand upon it's capabilities rather than locking your application into a tree of external/third-party dependencies.
+**The goal of this project** is to get some of those quirks out of the way (or at least work WITH them in ways that reduce the surprises in behavior) and reduce the typical "setup" code that a command line application needs, all while working with the standard library, to expand upon it's capabilities rather than locking your application into a tree of external/third-party dependencies.
 
 _"Wait, what? Why not just use 'x' or 'y'?"_ [Don't worry, I've got you covered.](#wait-what-why-not-just-use-x-or-y)
 
@@ -79,6 +79,25 @@ func main() {
 ```
 
 For more examples, see [the documentation](https://pkg.go.dev/github.com/Rican7/lieut).
+
+
+## How can I use this with another flag package?
+
+### pflag
+
+If you want to use the `github.com/spf13/pflag` package (or one of its many forks), you'll just need to "merge" the global and sub-command flag-sets yourself... Like this:
+
+```go
+globalFlags := flag.NewFlagSet("app", flag.ContinueOnError)
+globalFlags.String("someglobalflag", "example", "an example global flag")
+
+subCommandFlags := flag.NewFlagSet("subcommand", flag.ContinueOnError)
+subCommandFlags.AddFlagSet(globalFlags) // Merge the globals into this command's flags
+```
+
+### Other
+
+Honestly, I haven't tried, but I'd imagine you just handle and parse the flags yourself before running the lieut app.
 
 
 ## Wait, what? Why not just use "x" or "y"?
