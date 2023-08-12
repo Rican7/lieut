@@ -194,6 +194,10 @@ func (a *MultiCommandApp) CommandNames() []string {
 
 // Run takes a context and arguments, runs the expected command, and returns an
 // exit code.
+//
+// If the init function or command Executor returns a StatusCodeError, then the
+// returned exit code will match that of the value returned by
+// StatusCodeError.StatusCode().
 func (a *SingleCommandApp) Run(ctx context.Context, arguments []string) int {
 	if len(arguments) == 0 {
 		arguments = os.Args[1:]
@@ -216,6 +220,10 @@ func (a *SingleCommandApp) Run(ctx context.Context, arguments []string) int {
 
 // Run takes a context and arguments, runs the expected command, and returns an
 // exit code.
+//
+// If the init function or command Executor returns a StatusCodeError, then the
+// returned exit code will match that of the value returned by
+// StatusCodeError.StatusCode().
 func (a *MultiCommandApp) Run(ctx context.Context, arguments []string) int {
 	if len(arguments) == 0 {
 		arguments = os.Args[1:]
@@ -372,6 +380,11 @@ func (a *app) printErr(err error, pad bool) int {
 	}
 
 	fmt.Fprintf(a.errOut, msgFmt, err)
+
+	var statusErr StatusCodeError
+	if errors.As(err, &statusErr) {
+		return statusErr.StatusCode()
+	}
 
 	return 1
 }

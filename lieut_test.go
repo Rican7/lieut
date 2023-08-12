@@ -599,7 +599,7 @@ func TestSingleCommandApp_Run(t *testing.T) {
 	exitCode := app.Run(ctx, args)
 
 	if exitCode != wantedExitCode {
-		t.Errorf("app.Run gave %q, wanted %q", exitCode, wantedExitCode)
+		t.Errorf("app.Run gave %v, wanted %v", exitCode, wantedExitCode)
 	}
 
 	if !initRan {
@@ -638,7 +638,7 @@ func TestSingleCommandApp_Run_EmptyArgsProvided(t *testing.T) {
 	expectedArgs := os.Args[1:]
 
 	if exitCode := app.Run(context.TODO(), nil); exitCode != 0 {
-		t.Errorf("app.Run gave non-zero exit code %q", exitCode)
+		t.Errorf("app.Run gave non-zero exit code %v", exitCode)
 	}
 
 	if capturedArgs[0] != expectedArgs[0] {
@@ -716,6 +716,17 @@ test vTest (%s/%s)
 			wantedOut:      "",
 			wantedErrOut:   "Error: test init error\n",
 		},
+		"initialize returns status code error": {
+			init: func() error {
+				return ErrWithStatusCode(errors.New("test init error"), 101)
+			},
+
+			args: []string{"test"},
+
+			wantedExitCode: 101,
+			wantedOut:      "",
+			wantedErrOut:   "Error: test init error\n",
+		},
 		"execute returns error": {
 			exec: func(ctx context.Context, arguments []string) error {
 				return errors.New("test exec error")
@@ -724,6 +735,17 @@ test vTest (%s/%s)
 			args: []string{"test"},
 
 			wantedExitCode: 1,
+			wantedOut:      "",
+			wantedErrOut:   "\nError: test exec error\n",
+		},
+		"execute returns status code error": {
+			exec: func(ctx context.Context, arguments []string) error {
+				return ErrWithStatusCode(errors.New("test exec error"), 217)
+			},
+
+			args: []string{"test"},
+
+			wantedExitCode: 217,
 			wantedOut:      "",
 			wantedErrOut:   "\nError: test exec error\n",
 		},
@@ -740,7 +762,7 @@ test vTest (%s/%s)
 			exitCode := app.Run(context.TODO(), testData.args)
 
 			if exitCode != testData.wantedExitCode {
-				t.Errorf("app.Run gave %q, wanted %q", exitCode, testData.wantedExitCode)
+				t.Errorf("app.Run gave %v, wanted %v", exitCode, testData.wantedExitCode)
 			}
 
 			if out.String() != testData.wantedOut {
@@ -793,7 +815,7 @@ func TestMultiCommandApp_Run(t *testing.T) {
 	exitCode := app.Run(ctx, args)
 
 	if exitCode != wantedExitCode {
-		t.Errorf("app.Run gave %q, wanted %q", exitCode, wantedExitCode)
+		t.Errorf("app.Run gave %v, wanted %v", exitCode, wantedExitCode)
 	}
 
 	if !initRan {
@@ -837,7 +859,7 @@ func TestMultiCommandApp_Run_EmptyArgsProvided(t *testing.T) {
 	expectedArgs := os.Args[2:]
 
 	if exitCode := app.Run(context.TODO(), nil); exitCode != 0 {
-		t.Errorf("app.Run gave non-zero exit code %q", exitCode)
+		t.Errorf("app.Run gave non-zero exit code %v", exitCode)
 	}
 
 	if capturedArgs[0] != expectedArgs[0] {
@@ -972,6 +994,17 @@ test vTest (%s/%s)
 			wantedOut:      "",
 			wantedErrOut:   "Error: test init error\n",
 		},
+		"initialize returns status code error": {
+			init: func() error {
+				return ErrWithStatusCode(errors.New("test init error"), 101)
+			},
+
+			args: []string{testCommandInfo.Name},
+
+			wantedExitCode: 101,
+			wantedOut:      "",
+			wantedErrOut:   "Error: test init error\n",
+		},
 		"execute returns error": {
 			exec: func(ctx context.Context, arguments []string) error {
 				return errors.New("test exec error")
@@ -980,6 +1013,17 @@ test vTest (%s/%s)
 			args: []string{testCommandInfo.Name},
 
 			wantedExitCode: 1,
+			wantedOut:      "",
+			wantedErrOut:   "\nError: test exec error\n",
+		},
+		"execute returns status code error": {
+			exec: func(ctx context.Context, arguments []string) error {
+				return ErrWithStatusCode(errors.New("test exec error"), 217)
+			},
+
+			args: []string{testCommandInfo.Name},
+
+			wantedExitCode: 217,
 			wantedOut:      "",
 			wantedErrOut:   "\nError: test exec error\n",
 		},
@@ -1019,7 +1063,7 @@ test vTest (%s/%s)
 			exitCode := app.Run(context.TODO(), testData.args)
 
 			if exitCode != testData.wantedExitCode {
-				t.Errorf("app.Run gave %q, wanted %q", exitCode, testData.wantedExitCode)
+				t.Errorf("app.Run gave %v, wanted %v", exitCode, testData.wantedExitCode)
 			}
 
 			if out.String() != testData.wantedOut {
