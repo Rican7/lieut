@@ -70,14 +70,14 @@ type app struct {
 
 // SingleCommandApp is a runnable application that only has one command.
 type SingleCommandApp struct {
-	*app
+	app
 
 	exec Executor
 }
 
 // MultiCommandApp is a runnable application that has many commands.
 type MultiCommandApp struct {
-	*app
+	app
 
 	commands map[string]command
 }
@@ -99,7 +99,7 @@ func NewSingleCommandApp(info AppInfo, exec Executor, flags Flags, out io.Writer
 	flagSet := &flagSet{Flags: flags}
 
 	app := &SingleCommandApp{
-		app: &app{
+		app: app{
 			info: info,
 
 			flags: flagSet,
@@ -136,7 +136,7 @@ func NewMultiCommandApp(info AppInfo, flags Flags, out io.Writer, errOut io.Writ
 	flagSet := &flagSet{Flags: flags}
 
 	app := &MultiCommandApp{
-		app: &app{
+		app: app{
 			info: info,
 
 			flags: flagSet,
