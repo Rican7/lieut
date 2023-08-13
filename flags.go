@@ -209,12 +209,8 @@ func findEmbeddedFlagsStruct(flags Flags) Flags {
 }
 
 func reflectElemUntil(value reflect.Value, until func(value reflect.Value) bool) reflect.Value {
-	satisfied := until(value)
-	canElem := value.Kind() == reflect.Pointer || value.Kind() == reflect.Interface
-
-	if !satisfied && canElem {
-		value = reflectElemUntil(value.Elem(), until)
+	for !until(value) && (value.Kind() == reflect.Pointer || value.Kind() == reflect.Interface) {
+		value = value.Elem()
 	}
-
 	return value
 }
