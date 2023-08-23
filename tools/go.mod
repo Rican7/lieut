@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616
-	honnef.co/go/tools v0.4.3
+	honnef.co/go/tools v0.4.5
 	mvdan.cc/gofumpt v0.5.0
 )
 
