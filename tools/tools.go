@@ -5,7 +5,7 @@
 // Package tools provides tools for development.
 //
 // It follows the pattern set-forth in the wiki:
-//   - https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module
+//   - https://go.dev/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module
 //   - https://github.com/go-modules-by-example/index/tree/4ea90b07f9/010_tools
 package tools
 
