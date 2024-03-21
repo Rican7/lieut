@@ -212,7 +212,7 @@ func (a *SingleCommandApp) Run(ctx context.Context, arguments []string) int {
 	}
 
 	if err := a.initialize(); err != nil {
-		return a.printErr(err, false)
+		return a.handleError(err)
 	}
 
 	return a.execute(ctx, a.exec, a.flags.Args())
@@ -260,7 +260,7 @@ func (a *MultiCommandApp) Run(ctx context.Context, arguments []string) int {
 	}
 
 	if err := a.initialize(); err != nil {
-		return a.printErr(err, false)
+		return a.handleError(err)
 	}
 
 	return a.execute(ctx, cmd.Executor, cmd.flags.Args())
@@ -315,14 +315,28 @@ func (a *MultiCommandApp) PrintUsage(commandName string) {
 
 // PrintUsageError prints a standardized usage error to the app's error output.
 func (a *SingleCommandApp) PrintUsageError(err error) {
-	name := a.info.Name
-	a.printUsageError(name, err)
+	if err != nil && a.printError(err) {
+		// Print a spacer line if an error was printed
+		fmt.Fprintln(a.errOut)
+	}
+
+	a.PrintUsage()
+
+	fmt.Fprintf(a.errOut, "\nRun '%s --help' for usage.\n", a.info.Name)
 }
 
 // PrintUsageError prints a standardized usage error to the app's error output.
 func (a *MultiCommandApp) PrintUsageError(commandName string, err error) {
 	name := a.fullCommandName(commandName)
-	a.printUsageError(name, err)
+
+	if err != nil && a.printError(err) {
+		// Print a spacer line if an error was printed
+		fmt.Fprintln(a.errOut)
+	}
+
+	a.PrintUsage(commandName)
+
+	fmt.Fprintf(a.errOut, "\nRun '%s --help' for usage.\n", name)
 }
 
 func (a *app) intercept(flagSet *flagSet) bool {
@@ -366,20 +380,29 @@ func (a *app) execute(ctx context.Context, exec Executor, arguments []string) in
 
 	err := exec(ctx, arguments)
 	if err != nil && !errors.Is(err, context.Canceled) {
-		return a.printErr(err, true)
+		return a.handleError(err)
 	}
 
 	return 0
 }
 
-func (a *app) printErr(err error, pad bool) int {
-	msgFmt := "Error: %v\n"
+// printError takes an error, prints it with formatting, and then returns
+// whether or not any actual error message was printed.
+func (a *app) printError(err error) bool {
+	msg := err.Error()
 
-	if pad {
-		msgFmt = "\n" + msgFmt
+	if msg == "" {
+		// Return false to denote that no error was printed
+		return false
 	}
 
-	fmt.Fprintf(a.errOut, msgFmt, err)
+	fmt.Fprintf(a.errOut, "Error: %s\n", msg)
+
+	return true
+}
+
+func (a *app) handleError(err error) int {
+	a.printError(err)
 
 	var statusErr StatusCodeError
 	if errors.As(err, &statusErr) {
@@ -414,13 +437,8 @@ func (a *app) printVersion(toErr bool) {
 	fmt.Fprintf(out, "%s (%s/%s)\n", identifier, runtime.GOOS, runtime.GOARCH)
 }
 
-func (a *app) printUsageError(name string, err error) {
-	fmt.Fprintf(a.errOut, "%s: %v\n", name, err)
-	fmt.Fprintf(a.errOut, "Run '%s --help' for usage.\n", name)
-}
-
 func (a *MultiCommandApp) printUnknownCommand(commandName string) int {
-	a.printUsageError(a.info.Name, fmt.Errorf("unknown command '%s'", commandName))
+	a.PrintUsageError("", fmt.Errorf("unknown command '%s'", commandName))
 
 	return 1
 }

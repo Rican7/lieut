@@ -508,7 +508,10 @@ func TestSingleCommandApp_PrintUsageError(t *testing.T) {
 	app := NewSingleCommandApp(testAppInfo, testNoOpExecutor, flagSet, &buf, &buf)
 
 	usageErr := errors.New("test usage error")
-	want := `test: test usage error
+	want := `Error: test usage error
+
+Usage: test testing
+
 Run 'test --help' for usage.
 `
 
@@ -517,7 +520,7 @@ Run 'test --help' for usage.
 	got := buf.String()
 
 	if got != want {
-		t.Errorf("app.PrintVersion gave %q, want %q", got, want)
+		t.Errorf("app.PrintUsageError gave %q, want %q", got, want)
 	}
 }
 
@@ -528,7 +531,10 @@ func TestMultiCommandApp_PrintUsageError(t *testing.T) {
 	app := NewMultiCommandApp(testAppInfo, flagSet, &buf, &buf)
 
 	usageErr := errors.New("test usage error")
-	want := `test: test usage error
+	want := `Error: test usage error
+
+Usage: test testing
+
 Run 'test --help' for usage.
 `
 
@@ -537,7 +543,7 @@ Run 'test --help' for usage.
 	got := buf.String()
 
 	if got != want {
-		t.Errorf("app.PrintVersion gave %q, want %q", got, want)
+		t.Errorf("app.PrintUsageError gave %q, want %q", got, want)
 	}
 }
 
@@ -551,7 +557,10 @@ func TestMultiCommandApp_PrintUsageError_Command(t *testing.T) {
 	app.SetCommand(testCommandInfo, nil, nil)
 
 	usageErr := errors.New("test usage error")
-	want := `test testcommand: test usage error
+	want := `Error: test usage error
+
+Usage: test testcommand [arguments ...]
+
 Run 'test testcommand --help' for usage.
 `
 
@@ -560,7 +569,7 @@ Run 'test testcommand --help' for usage.
 	got := buf.String()
 
 	if got != want {
-		t.Errorf("app.PrintVersion gave %q, want %q", got, want)
+		t.Errorf("app.PrintUsageError gave %q, want %q", got, want)
 	}
 }
 
@@ -727,6 +736,17 @@ test vTest (%s/%s)
 			wantedOut:      "",
 			wantedErrOut:   "Error: test init error\n",
 		},
+		"initialize returns status code empty error": {
+			init: func() error {
+				return ErrWithStatusCode(errors.New(""), 101)
+			},
+
+			args: []string{"test"},
+
+			wantedExitCode: 101,
+			wantedOut:      "",
+			wantedErrOut:   "",
+		},
 		"execute returns error": {
 			exec: func(ctx context.Context, arguments []string) error {
 				return errors.New("test exec error")
@@ -736,7 +756,7 @@ test vTest (%s/%s)
 
 			wantedExitCode: 1,
 			wantedOut:      "",
-			wantedErrOut:   "\nError: test exec error\n",
+			wantedErrOut:   "Error: test exec error\n",
 		},
 		"execute returns status code error": {
 			exec: func(ctx context.Context, arguments []string) error {
@@ -747,7 +767,18 @@ test vTest (%s/%s)
 
 			wantedExitCode: 217,
 			wantedOut:      "",
-			wantedErrOut:   "\nError: test exec error\n",
+			wantedErrOut:   "Error: test exec error\n",
+		},
+		"execute returns status code empty error": {
+			exec: func(ctx context.Context, arguments []string) error {
+				return ErrWithStatusCode(errors.New(""), 217)
+			},
+
+			args: []string{"test"},
+
+			wantedExitCode: 217,
+			wantedOut:      "",
+			wantedErrOut:   "",
 		},
 	} {
 		t.Run(testName, func(t *testing.T) {
@@ -1014,7 +1045,7 @@ test vTest (%s/%s)
 
 			wantedExitCode: 1,
 			wantedOut:      "",
-			wantedErrOut:   "\nError: test exec error\n",
+			wantedErrOut:   "Error: test exec error\n",
 		},
 		"execute returns status code error": {
 			exec: func(ctx context.Context, arguments []string) error {
@@ -1025,14 +1056,14 @@ test vTest (%s/%s)
 
 			wantedExitCode: 217,
 			wantedOut:      "",
-			wantedErrOut:   "\nError: test exec error\n",
+			wantedErrOut:   "Error: test exec error\n",
 		},
 		"unknown command": {
 			args: []string{"thiscommanddoesnotexist"},
 
 			wantedExitCode: 1,
 			wantedOut:      "",
-			wantedErrOut:   "test: unknown command 'thiscommanddoesnotexist'\nRun 'test --help' for usage.\n",
+			wantedErrOut:   "Error: unknown command 'thiscommanddoesnotexist'\n\nUsage: test testing\n\nRun 'test --help' for usage.\n",
 		},
 		"unknown command is known flag": {
 			flags: func() Flags {
@@ -1046,7 +1077,7 @@ test vTest (%s/%s)
 
 			wantedExitCode: 1,
 			wantedOut:      "",
-			wantedErrOut:   "test: unknown command '--testflag'\nRun 'test --help' for usage.\n",
+			wantedErrOut:   "Error: unknown command '--testflag'\n\nUsage: test testing\n\nRun 'test --help' for usage.\n",
 		},
 	} {
 		t.Run(testName, func(t *testing.T) {
