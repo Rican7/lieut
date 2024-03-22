@@ -697,22 +697,14 @@ test vTest (%s/%s)
 			flags: flag.NewFlagSet("test", flag.ContinueOnError),
 			args:  []string{"--non-existent-flag=val"},
 
-			wantedExitCode: 1,
+			wantedExitCode: 2,
 			wantedOut:      "",
-			wantedErrOut: fmt.Sprintf(`flag provided but not defined: -non-existent-flag
+			wantedErrOut: `Error: flag provided but not defined: -non-existent-flag
+
 Usage: test testing
 
-A test
-
-Options:
-
-  -help
-    	Display the help message
-  -version
-    	Display the application version
-
-test vTest (%s/%s)
-`, runtime.GOOS, runtime.GOARCH),
+Run 'test --help' for usage.
+`,
 		},
 		"initialize returns error": {
 			init: func() error {
@@ -993,26 +985,14 @@ test vTest (%s/%s)
 			flags: flag.NewFlagSet("test", flag.ContinueOnError),
 			args:  []string{"--non-existent-flag=val"},
 
-			wantedExitCode: 1,
+			wantedExitCode: 2,
 			wantedOut:      "",
-			wantedErrOut: fmt.Sprintf(`flag provided but not defined: -non-existent-flag
+			wantedErrOut: `Error: flag provided but not defined: -non-existent-flag
+
 Usage: test testing
 
-A test
-
-Commands:
-
-	testcommand	A test command
-
-Options:
-
-  -help
-    	Display the help message
-  -version
-    	Display the application version
-
-test vTest (%s/%s)
-`, runtime.GOOS, runtime.GOARCH),
+Run 'test --help' for usage.
+`,
 		},
 		"initialize returns error": {
 			init: func() error {

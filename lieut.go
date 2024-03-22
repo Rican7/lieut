@@ -83,6 +83,9 @@ type MultiCommandApp struct {
 }
 
 // NewSingleCommandApp returns an initialized SingleCommandApp.
+//
+// The provided flags should have ContinueOnError ErrorHandling, or else flag
+// parsing errors won't properly be displayed/handled.
 func NewSingleCommandApp(info AppInfo, exec Executor, flags Flags, out io.Writer, errOut io.Writer) *SingleCommandApp {
 	if info.Name == "" {
 		info.Name = inferAppName()
@@ -112,7 +115,6 @@ func NewSingleCommandApp(info AppInfo, exec Executor, flags Flags, out io.Writer
 	}
 
 	app.setupFlagSet(app.flags)
-	app.setUsage(app.flags)
 
 	return app
 }
@@ -120,6 +122,9 @@ func NewSingleCommandApp(info AppInfo, exec Executor, flags Flags, out io.Writer
 // NewMultiCommandApp returns an initialized MultiCommandApp.
 //
 // The provided flags are global/shared among the app's commands.
+//
+// The provided flags should have ContinueOnError ErrorHandling, or else flag
+// parsing errors won't properly be displayed/handled.
 func NewMultiCommandApp(info AppInfo, flags Flags, out io.Writer, errOut io.Writer) *MultiCommandApp {
 	if info.Name == "" {
 		info.Name = inferAppName()
@@ -149,7 +154,6 @@ func NewMultiCommandApp(info AppInfo, flags Flags, out io.Writer, errOut io.Writ
 	}
 
 	app.setupFlagSet(app.flags)
-	app.setUsage(app.flags, "")
 
 	return app
 }
@@ -158,6 +162,9 @@ func NewMultiCommandApp(info AppInfo, flags Flags, out io.Writer, errOut io.Writ
 //
 // It returns an error if the provided flags have already been used for another
 // command (or for the globals).
+//
+// The provided flags should have ContinueOnError ErrorHandling, or else flag
+// parsing errors won't properly be displayed/handled.
 func (a *MultiCommandApp) SetCommand(info CommandInfo, exec Executor, flags Flags) error {
 	if info.Usage == "" {
 		info.Usage = DefaultCommandUsage
@@ -174,7 +181,6 @@ func (a *MultiCommandApp) SetCommand(info CommandInfo, exec Executor, flags Flag
 	flagSet := &flagSet{Flags: flags}
 
 	a.setupFlagSet(flagSet)
-	a.setUsage(flagSet, info.Name)
 
 	a.commands[info.Name] = command{info: info, Executor: exec, flags: flagSet}
 
@@ -204,7 +210,8 @@ func (a *SingleCommandApp) Run(ctx context.Context, arguments []string) int {
 	}
 
 	if err := a.flags.Parse(arguments); err != nil {
-		return 1
+		a.PrintUsageError(err)
+		return 2
 	}
 
 	if intercepted := a.intercept(a.flags); intercepted {
@@ -248,7 +255,8 @@ func (a *MultiCommandApp) Run(ctx context.Context, arguments []string) int {
 	}
 
 	if err := flags.Parse(arguments); err != nil {
-		return 1
+		a.PrintUsageError(commandName, err)
+		return 2
 	}
 
 	if intercepted := a.intercept(flags, commandName); intercepted {

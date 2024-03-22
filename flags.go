@@ -15,6 +15,7 @@ type Flags interface {
 	Parse(arguments []string) error
 	Args() []string
 	PrintDefaults()
+	Output() io.Writer
 	SetOutput(output io.Writer)
 }
 
@@ -44,6 +45,17 @@ type flagSet struct {
 
 func createDefaultFlags(name string) *flag.FlagSet {
 	return flag.NewFlagSet(name, flag.ContinueOnError)
+}
+
+// Parse wraps the inner flag Parse method, making sure that the error output is
+// discarded/silenced.
+func (f *flagSet) Parse(arguments []string) error {
+	originalOut := f.Output()
+
+	f.SetOutput(io.Discard)
+	defer f.SetOutput(originalOut)
+
+	return f.Flags.Parse(arguments)
 }
 
 func (a *MultiCommandApp) isUniqueFlagSet(flags Flags) bool {
@@ -98,20 +110,10 @@ func (a *app) setupFlagSet(flagSet *flagSet) {
 	}
 }
 
-// setUsage sets the `.Usage` field of the flags.
-func (a *SingleCommandApp) setUsage(flagSet *flagSet) {
-	setUsage(flagSet, a.PrintHelp)
-}
-
-// setUsage sets the `.Usage` field of the flags for a given command.
-func (a *MultiCommandApp) setUsage(flagSet *flagSet, commandName string) {
-	setUsage(flagSet, func() { a.PrintHelp(commandName) })
-}
-
 // printFlagDefaults wraps the writing of flag default values
 func (a *app) printFlagDefaults(flags Flags) {
 	var buffer bytes.Buffer
-	originalOut := a.errOut
+	originalOut := flags.Output()
 
 	flags.SetOutput(&buffer)
 	flags.PrintDefaults()
@@ -126,91 +128,4 @@ func (a *app) printFlagDefaults(flags Flags) {
 
 	// Restore the original output
 	flags.SetOutput(originalOut)
-}
-
-func setUsage(flagSet *flagSet, usageFunc func()) {
-	switch flags := flagSet.Flags.(type) {
-	case *flag.FlagSet:
-		// If we're dealing with the standard library flags, just set the usage
-		// function natively
-		flags.Usage = usageFunc
-	default:
-		// Otherwise, we'll have to use reflection to work generically...
-		//
-		// TODO: Remove the use of reflection one we can use the type-system to
-		// reliably detect types with specific fields, and set them.
-		//
-		// We CAN try and enforce a specific type of the flag set itself, but
-		// then we'll only be able to be fully compatible with one flag package,
-		// and none of the popular forks (like github.com/spf13/pflag).
-		//
-		// Until then, we'll HAVE to use reflection... :(
-		//
-		// See: https://github.com/golang/go/issues/48522
-		usageReflect := reflectFlagsUsage(flagSet.Flags)
-		if usageReflect == nil || !usageReflect.CanSet() {
-			return
-		}
-
-		reflectFunc := reflect.ValueOf(usageFunc)
-		usageReflect.Set(reflectFunc)
-	}
-}
-
-func reflectFlagsUsage(flags Flags) *reflect.Value {
-	flagsReflect := reflect.ValueOf(flags)
-	flagsReflect = reflectElemUntil(flagsReflect, func(value reflect.Value) bool {
-		return value.Kind() == reflect.Struct
-	})
-
-	if flagsReflect.Kind() != reflect.Struct {
-		return nil
-	}
-
-	usageReflect := flagsReflect.FieldByName("Usage")
-	usageFuncType := reflect.TypeOf(flag.Usage)
-
-	if !usageReflect.IsValid() || !usageReflect.Type().AssignableTo(usageFuncType) {
-		if embedded := findEmbeddedFlagsStruct(flags); embedded != nil {
-			return reflectFlagsUsage(embedded)
-		}
-
-		return nil
-	}
-
-	return &usageReflect
-}
-
-func findEmbeddedFlagsStruct(flags Flags) Flags {
-	flagsReflect := reflect.ValueOf(flags)
-	flagsReflect = reflectElemUntil(flagsReflect, func(value reflect.Value) bool {
-		return value.Kind() == reflect.Struct
-	})
-
-	flagsType := reflect.TypeOf((*Flags)(nil)).Elem()
-	for i := 0; i < flagsReflect.NumField(); i++ {
-		field := flagsReflect.Field(i)
-
-		field = reflectElemUntil(field, func(value reflect.Value) bool {
-			canElem := value.Kind() == reflect.Pointer || value.Kind() == reflect.Interface
-			isStructPointer := canElem && value.Elem().Kind() == reflect.Struct
-
-			return isStructPointer &&
-				value.CanInterface() &&
-				value.Type().Implements(flagsType)
-		})
-
-		if field.IsValid() && field.CanInterface() && field.Type().Implements(flagsType) {
-			return field.Interface().(Flags)
-		}
-	}
-
-	return nil
-}
-
-func reflectElemUntil(value reflect.Value, until func(value reflect.Value) bool) reflect.Value {
-	for !until(value) && (value.Kind() == reflect.Pointer || value.Kind() == reflect.Interface) {
-		value = value.Elem()
-	}
-	return value
 }
