@@ -37,7 +37,6 @@ Use a tagged version or vendor this dependency if you plan on using it.
  - Standardized output handling of application (and command) usage, description, help, and version..
  - Help flag (`--help`) handling, with actual user-facing notice (it shows up as a flag in the options list), rather than just handling it silently..
  - Version flag (`--version`) handling with a standardized output.
- - Automatic flag handling (`--help` and `--version`) can be disabled by simply defining your own flags of the same name.
  - Global and sub-command flags with automatic merging.
  - Built-in signal handling (interrupt) with context cancellation.
  - Smart defaults, so there's less to configure.
