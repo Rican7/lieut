@@ -41,6 +41,9 @@ jobs:
     - name: Test
       run: make test-with-coverage-profile
 
+    - name: Test Integrations
+      run: make test-integrations
+
     - name: Send code coverage to coveralls
       if: ${{ matrix.go == '1.22.x' }}
       env:

@@ -1,6 +1,7 @@
 # Define directories
 ROOT_DIR ?= ${CURDIR}
 TOOLS_DIR ?= ${ROOT_DIR}/tools
+INTEGRATIONS_DIR ?= ${ROOT_DIR}/integrations
 
 # Set a local GOBIN, since the default value can't be trusted
 # (See https://github.com/golang/go/issues/23439)
@@ -50,6 +51,11 @@ test-with-coverage-formatted:
 test-with-coverage-profile:
 	go test -covermode ${GO_TEST_COVERAGE_MODE} -coverprofile ${GO_TEST_COVERAGE_FILE_NAME} ./...
 
+${INTEGRATIONS_DIR} test-integrations:
+	cd ${INTEGRATIONS_DIR} && go test -v ./...
+
+test-all: test test-integrations
+
 format-lint:
 	$(info ${GOBIN}/gofumpt -l ${GOFUMPT_FLAGS} .)
 	@errors=$$(${GOBIN}/gofumpt -l ${GOFUMPT_FLAGS} .); if [ "$${errors}" != "" ]; then echo "Format lint failed on:\n$${errors}\n"; exit 1; fi
@@ -70,4 +76,4 @@ fix: install-deps-dev format-fix
 	go fix ./...
 
 
-.PHONY: all clean build install-deps tools install-deps-dev update-deps test test-with-coverage test-with-coverage-formatted test-with-coverage-profile format-lint style-lint lint vet format-fix fix
+.PHONY: all clean build install-deps tools install-deps-dev update-deps test test-with-coverage test-with-coverage-formatted test-with-coverage-profile test-integrations test-all format-lint style-lint lint vet format-fix fix
