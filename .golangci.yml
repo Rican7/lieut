@@ -1,13 +1,12 @@
 version: "2"
 
 linters:
-  disable:
-    - errcheck
   enable:
     - govet
     - staticcheck
     - ineffassign
     - errname
+    - errcheck
     - unused
     - godoclint
     - asciicheck
@@ -16,6 +15,15 @@ linters:
     - nolintlint
     - sloglint
   settings:
+    errcheck:
+      # List of functions to exclude from checking, where each entry is a single function to exclude.
+      # See https://github.com/kisielk/errcheck#excluding-functions for details.
+      exclude-functions:
+        - fmt.Printf
+        - fmt.Println
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (*bytes.Buffer).WriteTo
     errorlint:
       # Check whether fmt.Errorf uses the %w verb for formatting errors.
       #
@@ -40,6 +48,9 @@ linters:
       - path: _test\.go
         linters:
           - containedctx
+      - path: example_.*_test\.go
+        linters:
+          - errcheck
 
 formatters:
   enable:

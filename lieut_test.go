@@ -177,8 +177,8 @@ func TestMultiCommandApp_CommandNames(t *testing.T) {
 		t.Errorf("CommandNames returned a non-empty slice %v", names)
 	}
 
-	app.SetCommand(CommandInfo{Name: "foo"}, nil, nil)
-	app.SetCommand(CommandInfo{Name: "bar"}, nil, nil)
+	_ = app.SetCommand(CommandInfo{Name: "foo"}, nil, nil)
+	_ = app.SetCommand(CommandInfo{Name: "bar"}, nil, nil)
 
 	names := app.CommandNames()
 
@@ -415,10 +415,10 @@ test vTest (%s/%s)
 	app := NewMultiCommandApp(testAppInfo, nil, &buf, &buf)
 
 	// Add in a specific order to test preservation
-	app.SetCommand(CommandInfo{Name: "a", Summary: "Short summary"}, testNoOpExecutor, nil)
-	app.SetCommand(CommandInfo{Name: "longer", Summary: "Another summary"}, testNoOpExecutor, nil)
-	app.SetCommand(CommandInfo{Name: "much-longer-command", Summary: "Yet another summary"}, testNoOpExecutor, nil)
-	app.SetCommand(CommandInfo{Name: "zzz", Summary: "Last summary"}, testNoOpExecutor, nil)
+	_ = app.SetCommand(CommandInfo{Name: "a", Summary: "Short summary"}, testNoOpExecutor, nil)
+	_ = app.SetCommand(CommandInfo{Name: "longer", Summary: "Another summary"}, testNoOpExecutor, nil)
+	_ = app.SetCommand(CommandInfo{Name: "much-longer-command", Summary: "Yet another summary"}, testNoOpExecutor, nil)
+	_ = app.SetCommand(CommandInfo{Name: "zzz", Summary: "Last summary"}, testNoOpExecutor, nil)
 
 	app.PrintHelp("")
 
@@ -441,12 +441,12 @@ func TestMultiCommandApp_CommandOrderIsConsistent(t *testing.T) {
 		r.Shuffle(len(names), func(i, j int) { names[i], names[j] = names[j], names[i] })
 
 		for _, name := range names {
-			app.SetCommand(CommandInfo{Name: name}, testNoOpExecutor, nil)
+			_ = app.SetCommand(CommandInfo{Name: name}, testNoOpExecutor, nil)
 		}
 
 		// Test that re-setting a command doesn't change the order
 		updateName := names[r.Intn(len(names))]
-		app.SetCommand(CommandInfo{Name: updateName, Summary: "Updated"}, testNoOpExecutor, nil)
+		_ = app.SetCommand(CommandInfo{Name: updateName, Summary: "Updated"}, testNoOpExecutor, nil)
 
 		got := app.CommandNames()
 
@@ -642,7 +642,7 @@ func TestMultiCommandApp_PrintUsageError_Command(t *testing.T) {
 	app := NewMultiCommandApp(testAppInfo, flagSet, &buf, &buf)
 
 	testCommandInfo := CommandInfo{Name: "testcommand"}
-	app.SetCommand(testCommandInfo, nil, nil)
+	_ = app.SetCommand(testCommandInfo, nil, nil)
 
 	usageErr := errors.New("test usage error")
 	want := `Error: test usage error
@@ -907,7 +907,7 @@ func TestMultiCommandApp_Run(t *testing.T) {
 	}
 	commandFlagSet := flag.NewFlagSet(testCommandInfo.Name, flag.ExitOnError)
 
-	app.SetCommand(testCommandInfo, executor, commandFlagSet)
+	_ = app.SetCommand(testCommandInfo, executor, commandFlagSet)
 
 	ctxTestKey := struct{ k string }{k: "test-key-for-testing"}
 	ctxTestVal := "test context val"
@@ -958,7 +958,7 @@ func TestMultiCommandApp_Run_EmptyArgsProvided(t *testing.T) {
 
 	commandFlagSet := flag.NewFlagSet(testCommandInfo.Name, flag.ExitOnError)
 
-	app.SetCommand(testCommandInfo, executor, commandFlagSet)
+	_ = app.SetCommand(testCommandInfo, executor, commandFlagSet)
 
 	originalOSArgs := os.Args[:]
 	defer func() {
@@ -1151,7 +1151,7 @@ Run 'test --help' for usage.
 
 			app := NewMultiCommandApp(testAppInfo, testData.flags, &out, &errOut)
 
-			app.SetCommand(testCommandInfo, testData.exec, testData.commandFlags)
+			_ = app.SetCommand(testCommandInfo, testData.exec, testData.commandFlags)
 
 			if testData.init != nil {
 				app.OnInit(testData.init)
