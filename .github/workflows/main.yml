@@ -20,14 +20,13 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v6
 
     - name: Setup Go
-      uses: actions/setup-go@v3
+      uses: actions/setup-go@v6
       with:
         go-version: ${{ matrix.go }}
         cache: true
-        cache-dependency-path: '**/go.sum' # Main module and tools submodule
 
     - name: Download dependencies
       run: make install-deps install-deps-dev
