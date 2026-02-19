@@ -379,6 +379,48 @@ test vTest (%s/%s)
 	}
 }
 
+func TestMultiCommandApp_PrintHelp_AlignmentAndSorting(t *testing.T) {
+	wantFormat := `Usage: test testing
+
+A test
+
+Commands:
+
+	a                  	Short summary
+	longer             	Another summary
+	much-longer-command	Yet another summary
+	zzz                	Last summary
+
+Options:
+
+  -help
+    	Display the help message
+  -version
+    	Display the application version
+
+test vTest (%s/%s)
+`
+	want := fmt.Sprintf(wantFormat, runtime.GOOS, runtime.GOARCH)
+
+	var buf bytes.Buffer
+
+	app := NewMultiCommandApp(testAppInfo, nil, &buf, &buf)
+
+	// Add in non-alphabetical order to test sorting
+	app.SetCommand(CommandInfo{Name: "zzz", Summary: "Last summary"}, testNoOpExecutor, nil)
+	app.SetCommand(CommandInfo{Name: "longer", Summary: "Another summary"}, testNoOpExecutor, nil)
+	app.SetCommand(CommandInfo{Name: "a", Summary: "Short summary"}, testNoOpExecutor, nil)
+	app.SetCommand(CommandInfo{Name: "much-longer-command", Summary: "Yet another summary"}, testNoOpExecutor, nil)
+
+	app.PrintHelp("")
+
+	got := buf.String()
+
+	if got != want {
+		t.Errorf("app.PrintHelp alignment/sorting gave %q, want %q", got, want)
+	}
+}
+
 func TestSingleCommandApp_PrintUsage(t *testing.T) {
 	for testName, testData := range map[string]struct {
 		usage string

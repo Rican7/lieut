@@ -17,6 +17,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 )
 
@@ -485,8 +486,19 @@ func (a *MultiCommandApp) printFullUsage(commandName string) {
 
 		fmt.Fprintf(a.errOut, "\nCommands:\n\n")
 
-		for _, command := range a.commands {
-			fmt.Fprintf(a.errOut, "\t%s\t%s\n", command.info.Name, command.info.Summary)
+		names := a.CommandNames()
+		sort.Strings(names)
+
+		maxNameLength := 0
+		for _, name := range names {
+			if len(name) > maxNameLength {
+				maxNameLength = len(name)
+			}
+		}
+
+		for _, name := range names {
+			command := a.commands[name]
+			fmt.Fprintf(a.errOut, "\t%-[1]*s\t%s\n", maxNameLength, command.info.Name, command.info.Summary)
 		}
 
 		a.printFlagDefaults(a.flags)
