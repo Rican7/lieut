@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: ['1.20.x', '1.21.x', '1.22.x']
+        go: ['1.20.x', '1.21.x', '1.22.x', '1.23.x', '1.24.x', '1.25.x', '1.26.x']
 
     steps:
     - name: Checkout code
@@ -44,7 +44,7 @@ jobs:
       run: make test-integrations
 
     - name: Send code coverage to coveralls
-      if: ${{ matrix.go == '1.22.x' }}
+      if: ${{ matrix.go == '1.26.x' }}
       env:
         COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
