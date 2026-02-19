@@ -115,7 +115,7 @@ func NewSingleCommandApp(info AppInfo, exec Executor, flags Flags, out io.Writer
 		exec: exec,
 	}
 
-	app.setupFlagSet(app.flags)
+	app.setupFlagSet(app.flags, true)
 
 	return app
 }
@@ -154,7 +154,7 @@ func NewMultiCommandApp(info AppInfo, flags Flags, out io.Writer, errOut io.Writ
 		commands: make(map[string]command),
 	}
 
-	app.setupFlagSet(app.flags)
+	app.setupFlagSet(app.flags, true)
 
 	return app
 }
@@ -181,7 +181,7 @@ func (a *MultiCommandApp) SetCommand(info CommandInfo, exec Executor, flags Flag
 
 	flagSet := &flagSet{Flags: flags}
 
-	a.setupFlagSet(flagSet)
+	a.setupFlagSet(flagSet, false)
 
 	if _, hasCommand := a.commands[info.Name]; !hasCommand {
 		a.commandNames = append(a.commandNames, info.Name)

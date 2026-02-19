@@ -74,7 +74,7 @@ func (a *MultiCommandApp) isUniqueFlagSet(flags Flags) bool {
 	return true
 }
 
-func (a *app) setupFlagSet(flagSet *flagSet) {
+func (a *app) setupFlagSet(flagSet *flagSet, isRoot bool) {
 	flagSet.SetOutput(a.errOut)
 
 	helpDescription := "Display the help message"
@@ -87,10 +87,7 @@ func (a *app) setupFlagSet(flagSet *flagSet) {
 	}
 
 	// If the passed flags are the app's global/shared flags
-	//
-	// NOTE: We have to use `reflect.DeepEqual`, because the interface values
-	// could be non-comparable and could panic at runtime.
-	if a.flags == nil || reflect.DeepEqual(a.flags.Flags, flagSet.Flags) {
+	if isRoot {
 		if flags, ok := flagSet.Flags.(boolFlagger); ok {
 			flags.BoolVar(&flagSet.requestedVersion, "version", flagSet.requestedVersion, "Display the application version")
 		}
