@@ -86,15 +86,15 @@ func (a *app) setupFlagSet(flagSet *flagSet) {
 		flags.BoolVar(&flagSet.requestedHelp, "help", flagSet.requestedHelp, helpDescription)
 	}
 
-	if flags, ok := flagSet.Flags.(boolFlagger); ok {
-		flags.BoolVar(&flagSet.requestedVersion, "version", flagSet.requestedVersion, "Display the application version")
-	}
-
-	// If the passed flags are not the app's global/shared flags
+	// If the passed flags are the app's global/shared flags
 	//
 	// NOTE: We have to use `reflect.DeepEqual`, because the interface values
 	// could be non-comparable and could panic at runtime.
-	if !reflect.DeepEqual(a.flags.Flags, flagSet.Flags) {
+	if a.flags == nil || reflect.DeepEqual(a.flags.Flags, flagSet.Flags) {
+		if flags, ok := flagSet.Flags.(boolFlagger); ok {
+			flags.BoolVar(&flagSet.requestedVersion, "version", flagSet.requestedVersion, "Display the application version")
+		}
+	} else {
 		globalFlags, globalFlagsOk := a.flags.Flags.(visitAllFlagger)
 		flags, flagsOk := flagSet.Flags.(lookupVarFlagger)
 
@@ -103,7 +103,11 @@ func (a *app) setupFlagSet(flagSet *flagSet) {
 			globalFlags.VisitAll(func(flag *flag.Flag) {
 				// Don't override any existing flags (which causes panics...)
 				if existing := flags.Lookup(flag.Name); existing == nil {
-					flags.Var(flag.Value, flag.Name, flag.Usage)
+					// Don't merge the version flag, as it should only be
+					// available on the root/global flag set
+					if flag.Name != "version" {
+						flags.Var(flag.Value, flag.Name, flag.Usage)
+					}
 				}
 			})
 		}

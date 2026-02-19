@@ -344,8 +344,6 @@ Options:
     	A test command flag (default 5)
   -testflag string
     	A test flag (default "testval")
-  -version
-    	Display the application version
 
 test vTest (%s/%s)
 `
@@ -952,8 +950,6 @@ Options:
 
   -help
     	Display the help message
-  -version
-    	Display the application version
 
 test vTest (%s/%s)
 `, runtime.GOOS, runtime.GOARCH),
