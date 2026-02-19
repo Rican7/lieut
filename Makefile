@@ -10,9 +10,14 @@ export GOBIN ?= ${TOOLS_DIR}/bin
 # Build flags
 GO_CLEAN_FLAGS ?= -i -r -x ${GO_BUILD_FLAGS}
 
-# Tool flags
+# Tool flags, versions, and "stamps"
+#
+# NOTE: Stamp files mark installed versions of tools, to detect the known
+# installed version of a tool compared to the configuration.
 GOFUMPT_FLAGS ?=
 GOLINT_MIN_CONFIDENCE ?= 0.3
+GOLANGCI_LINT_VERSION ?= 2.9.0
+GOLANGCI_LINT_STAMP = ${TOOLS_DIR}/.golangci-lint-${GOLANGCI_LINT_VERSION}.stamp
 
 # Set the mode for code-coverage
 GO_TEST_COVERAGE_MODE ?= count
@@ -30,11 +35,18 @@ build: install-deps
 install-deps:
 	go mod download
 
-${TOOLS_DIR} tools install-deps-dev:
-	cd ${TOOLS_DIR} && go install \
-		golang.org/x/lint/golint \
-		honnef.co/go/tools/cmd/staticcheck \
-		mvdan.cc/gofumpt
+${TOOLS_DIR} tools install-deps-dev: ${GOLANGCI_LINT_STAMP}
+
+${GOLANGCI_LINT_STAMP}:
+# Install golangci-lint with a "stamped" version.
+#
+# This should automatically update the tool whenever the stamp doesn't exist.
+	@rm -f -- ${TOOLS_DIR}/.golangci-lint-*.stamp
+	@echo
+	@echo "Installing golangci-lint v${GOLANGCI_LINT_VERSION}..."
+	@echo
+	curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "${GOBIN}" v${GOLANGCI_LINT_VERSION}
+	@touch "$@"
 
 update-deps:
 	go get ./...
@@ -56,24 +68,31 @@ ${INTEGRATIONS_DIR} test-integrations:
 
 test-all: test test-integrations
 
-format-lint:
-	$(info ${GOBIN}/gofumpt -l ${GOFUMPT_FLAGS} .)
-	@errors=$$(${GOBIN}/gofumpt -l ${GOFUMPT_FLAGS} .); if [ "$${errors}" != "" ]; then echo "Format lint failed on:\n$${errors}\n"; exit 1; fi
+format-check: install-deps install-deps-dev
+	@echo "Checking code formatting..."
+	"${GOBIN}"/golangci-lint fmt --diff ./...
 
-style-lint: install-deps-dev
-	${GOBIN}/golint -min_confidence=${GOLINT_MIN_CONFIDENCE} -set_exit_status ./...
-	${GOBIN}/staticcheck ./...
+format-fix format: install-deps install-deps-dev
+	@echo "Formatting code..."
+	"${GOBIN}"/golangci-lint fmt ./...
 
-lint: install-deps-dev format-lint style-lint
+lint-check: install-deps install-deps-dev
+	@echo "Checking code (linting)..."
+# Fail on any diffs from `go fix`.
+#
+# TODO: Simplify this once https://github.com/golang/go/issues/77583 is fixed.
+	errors=$$(go fix -diff ./...); if [ "$${errors}" != "" ]; then echo "$${errors}"; exit 1; fi
+	"${GOBIN}"/golangci-lint run ./...
 
-vet:
-	go vet ./...
+lint-fix: install-deps install-deps-dev
+	@echo "Auto-fixing code..."
+	go fix ./...
+	"${GOBIN}"/golangci-lint run --fix ./...
 
-format-fix:
-	${GOBIN}/gofumpt -w ${GOFUMPT_FLAGS} .
+check: install-deps-dev format-check lint-check
 
 fix: install-deps-dev format-fix
 	go fix ./...
 
 
-.PHONY: all clean build install-deps tools install-deps-dev update-deps test test-with-coverage test-with-coverage-formatted test-with-coverage-profile test-integrations test-all format-lint style-lint lint vet format-fix fix
+.PHONY: all clean build install-deps tools install-deps-dev update-deps test test-with-coverage test-with-coverage-formatted test-with-coverage-profile test-integrations test-all format-check format-fix lint-check lint-fix check fix

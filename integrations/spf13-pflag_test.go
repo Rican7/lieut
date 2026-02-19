@@ -5,8 +5,9 @@ import (
 	"io"
 	"testing"
 
-	"github.com/Rican7/lieut"
 	"github.com/spf13/pflag"
+
+	"github.com/Rican7/lieut"
 )
 
 var testAppInfo = lieut.AppInfo{

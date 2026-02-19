@@ -31,11 +31,8 @@ jobs:
     - name: Download dependencies
       run: make install-deps install-deps-dev
 
-    - name: Lint
-      run: make lint
-
-    - name: Vet
-      run: make vet
+    - name: Check code
+      run: make check
 
     - name: Test
       run: make test-with-coverage-profile

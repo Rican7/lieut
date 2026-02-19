@@ -89,7 +89,12 @@ func (a *app) setupFlagSet(flagSet *flagSet, isRoot bool) {
 	// If the passed flags are the app's global/shared flags
 	if isRoot {
 		if flags, ok := flagSet.Flags.(boolFlagger); ok {
-			flags.BoolVar(&flagSet.requestedVersion, "version", flagSet.requestedVersion, "Display the application version")
+			flags.BoolVar(
+				&flagSet.requestedVersion,
+				"version",
+				flagSet.requestedVersion,
+				"Display the application version",
+			)
 		}
 	} else {
 		globalFlags, globalFlagsOk := a.flags.Flags.(visitAllFlagger)

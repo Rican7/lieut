@@ -1,4 +1,5 @@
-# Tools binaries
+# Tools artifacts & binaries
+/tools/*.stamp
 /tools/bin
 
 # Code coverage files

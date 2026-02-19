@@ -1,0 +1,59 @@
+version: "2"
+
+linters:
+  disable:
+    - errcheck
+  enable:
+    - govet
+    - staticcheck
+    - ineffassign
+    - errname
+    - unused
+    - godoclint
+    - asciicheck
+    - containedctx
+    - errorlint
+    - nolintlint
+    - sloglint
+  settings:
+    errorlint:
+      # Check whether fmt.Errorf uses the %w verb for formatting errors.
+      #
+      # NOTE: We want to allow to not always wrap errors, as then they "leak"
+      # and become a part of your supported API.
+      errorf: false
+    nolintlint:
+      # Disable to ensure that all nolint directives actually have an effect.
+      allow-unused: false
+      # Enable to require an explanation of nonzero length after each nolint
+      # directive.
+      require-explanation: true
+      # Enable to require nolint directives to mention the specific linter being
+      # suppressed.
+      require-specific: true
+    sloglint:
+      # Enforce not using global loggers.
+      no-global: all # Report for all loggers, not just the default global.
+  exclusions:
+    rules:
+      # Exclude some linters from running on tests files.
+      - path: _test\.go
+        linters:
+          - containedctx
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+    - gofumpt
+    - golines
+  settings:
+    goimports:
+      # A list of prefixes, which, if set, checks import paths with the given
+      # prefixes are grouped after 3rd-party packages.
+      local-prefixes:
+        - github.com/Rican7/lieut
+    golines:
+      # Target maximum line length.
+      max-len: 120
+      reformat-tags: false

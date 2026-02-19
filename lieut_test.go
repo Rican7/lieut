@@ -64,7 +64,11 @@ func TestNewSingleCommandApp_ZeroValues(t *testing.T) {
 	}
 
 	if app.info.Usage != DefaultCommandUsage {
-		t.Errorf("NewSingleCommandApp with no given usage gave %q usage, wanted %q", app.info.Usage, DefaultCommandUsage)
+		t.Errorf(
+			"NewSingleCommandApp with no given usage gave %q usage, wanted %q",
+			app.info.Usage,
+			DefaultCommandUsage,
+		)
 	}
 
 	if app.flags.Flags == nil {
@@ -94,7 +98,11 @@ func TestNewMultiCommandApp_ZeroValues(t *testing.T) {
 	}
 
 	if app.info.Usage != DefaultParentCommandUsage {
-		t.Errorf("NewMultiCommandApp with no given usage gave %q usage, wanted %q", app.info.Usage, DefaultParentCommandUsage)
+		t.Errorf(
+			"NewMultiCommandApp with no given usage gave %q usage, wanted %q",
+			app.info.Usage,
+			DefaultParentCommandUsage,
+		)
 	}
 
 	if app.flags.Flags == nil {
@@ -448,7 +456,14 @@ func TestMultiCommandApp_CommandOrderIsConsistent(t *testing.T) {
 
 		for j, name := range names {
 			if got[j] != name {
-				t.Errorf("iteration %d (seed %d): CommandNames() gave %v at index %d, wanted %v", i, seed, got[j], j, name)
+				t.Errorf(
+					"iteration %d (seed %d): CommandNames() gave %v at index %d, wanted %v",
+					i,
+					seed,
+					got[j],
+					j,
+					name,
+				)
 			}
 		}
 	}
