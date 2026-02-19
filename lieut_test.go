@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"runtime"
-	"sort"
 	"testing"
 )
 
@@ -172,9 +171,8 @@ func TestMultiCommandApp_CommandNames(t *testing.T) {
 	app.SetCommand(CommandInfo{Name: "bar"}, nil, nil)
 
 	names := app.CommandNames()
-	sort.Strings(names)
 
-	if names[0] != "bar" && names[1] != "foo" {
+	if names[0] != "foo" || names[1] != "bar" {
 		t.Errorf("CommandNames returned an unexpected slice %v", names)
 	}
 }
@@ -379,7 +377,7 @@ test vTest (%s/%s)
 	}
 }
 
-func TestMultiCommandApp_PrintHelp_AlignmentAndSorting(t *testing.T) {
+func TestMultiCommandApp_PrintHelp_AlignmentAndOrder(t *testing.T) {
 	wantFormat := `Usage: test testing
 
 A test
@@ -406,18 +404,38 @@ test vTest (%s/%s)
 
 	app := NewMultiCommandApp(testAppInfo, nil, &buf, &buf)
 
-	// Add in non-alphabetical order to test sorting
-	app.SetCommand(CommandInfo{Name: "zzz", Summary: "Last summary"}, testNoOpExecutor, nil)
-	app.SetCommand(CommandInfo{Name: "longer", Summary: "Another summary"}, testNoOpExecutor, nil)
+	// Add in a specific order to test preservation
 	app.SetCommand(CommandInfo{Name: "a", Summary: "Short summary"}, testNoOpExecutor, nil)
+	app.SetCommand(CommandInfo{Name: "longer", Summary: "Another summary"}, testNoOpExecutor, nil)
 	app.SetCommand(CommandInfo{Name: "much-longer-command", Summary: "Yet another summary"}, testNoOpExecutor, nil)
+	app.SetCommand(CommandInfo{Name: "zzz", Summary: "Last summary"}, testNoOpExecutor, nil)
 
 	app.PrintHelp("")
 
 	got := buf.String()
 
 	if got != want {
-		t.Errorf("app.PrintHelp alignment/sorting gave %q, want %q", got, want)
+		t.Errorf("app.PrintHelp alignment/order gave %q, want %q", got, want)
+	}
+}
+
+func TestMultiCommandApp_CommandOrderIsConsistent(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		app := NewMultiCommandApp(testAppInfo, nil, io.Discard, io.Discard)
+
+		names := []string{"first", "second", "third", "fourth", "fifth"}
+
+		for _, name := range names {
+			app.SetCommand(CommandInfo{Name: name}, testNoOpExecutor, nil)
+		}
+
+		got := app.CommandNames()
+
+		for j, name := range names {
+			if got[j] != name {
+				t.Errorf("iteration %d: CommandNames() gave %v at index %d, wanted %v", i, got[j], j, name)
+			}
+		}
 	}
 }
 

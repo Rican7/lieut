@@ -17,7 +17,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"strings"
 )
 
@@ -80,7 +79,8 @@ type SingleCommandApp struct {
 type MultiCommandApp struct {
 	app
 
-	commands map[string]command
+	commands     map[string]command
+	commandNames []string // Separate slice, to ensure consistent command order
 }
 
 // NewSingleCommandApp returns an initialized SingleCommandApp.
@@ -183,6 +183,10 @@ func (a *MultiCommandApp) SetCommand(info CommandInfo, exec Executor, flags Flag
 
 	a.setupFlagSet(flagSet)
 
+	if _, hasCommand := a.commands[info.Name]; !hasCommand {
+		a.commandNames = append(a.commandNames, info.Name)
+	}
+
 	a.commands[info.Name] = command{info: info, Executor: exec, flags: flagSet}
 
 	return nil
@@ -190,11 +194,9 @@ func (a *MultiCommandApp) SetCommand(info CommandInfo, exec Executor, flags Flag
 
 // CommandNames returns the names of the set commands.
 func (a *MultiCommandApp) CommandNames() []string {
-	names := make([]string, 0, len(a.commands))
+	names := make([]string, len(a.commandNames))
 
-	for name := range a.commands {
-		names = append(names, name)
-	}
+	copy(names, a.commandNames)
 
 	return names
 }
@@ -486,17 +488,14 @@ func (a *MultiCommandApp) printFullUsage(commandName string) {
 
 		fmt.Fprintf(a.errOut, "\nCommands:\n\n")
 
-		names := a.CommandNames()
-		sort.Strings(names)
-
 		maxNameLength := 0
-		for _, name := range names {
+		for _, name := range a.commandNames {
 			if len(name) > maxNameLength {
 				maxNameLength = len(name)
 			}
 		}
 
-		for _, name := range names {
+		for _, name := range a.commandNames {
 			command := a.commands[name]
 			fmt.Fprintf(a.errOut, "\t%-[1]*s\t%s\n", maxNameLength, command.info.Name, command.info.Summary)
 		}
