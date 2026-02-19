@@ -7,9 +7,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"runtime"
 	"testing"
+	"time"
 )
 
 var testAppInfo = AppInfo{
@@ -420,20 +422,33 @@ test vTest (%s/%s)
 }
 
 func TestMultiCommandApp_CommandOrderIsConsistent(t *testing.T) {
-	for i := 0; i < 100; i++ {
+	seed := time.Now().UnixNano()
+	r := rand.New(rand.NewSource(seed))
+
+	for i := 0; i < 1000; i++ {
 		app := NewMultiCommandApp(testAppInfo, nil, io.Discard, io.Discard)
 
-		names := []string{"first", "second", "third", "fourth", "fifth"}
+		// Create a set of names and shuffle them
+		names := []string{"a", "b", "c", "d", "e", "f", "g"}
+		r.Shuffle(len(names), func(i, j int) { names[i], names[j] = names[j], names[i] })
 
 		for _, name := range names {
 			app.SetCommand(CommandInfo{Name: name}, testNoOpExecutor, nil)
 		}
 
+		// Test that re-setting a command doesn't change the order
+		updateName := names[r.Intn(len(names))]
+		app.SetCommand(CommandInfo{Name: updateName, Summary: "Updated"}, testNoOpExecutor, nil)
+
 		got := app.CommandNames()
+
+		if len(got) != len(names) {
+			t.Fatalf("iteration %d (seed %d): got %d names, wanted %d", i, seed, len(got), len(names))
+		}
 
 		for j, name := range names {
 			if got[j] != name {
-				t.Errorf("iteration %d: CommandNames() gave %v at index %d, wanted %v", i, got[j], j, name)
+				t.Errorf("iteration %d (seed %d): CommandNames() gave %v at index %d, wanted %v", i, seed, got[j], j, name)
 			}
 		}
 	}
