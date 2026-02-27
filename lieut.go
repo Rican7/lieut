@@ -424,30 +424,29 @@ func (a *app) printError(err error) bool {
 }
 
 func (a *app) handleError(err error) int {
-	if errors.Is(err, ErrHelpRequested) {
+	exitCode := 1
+
+	switch {
+	case errors.Is(err, ErrHelpRequested):
+		exitCode = 0
+
 		if a.printError(err) {
 			fmt.Fprintln(a.errOut)
 		}
+
 		if a.helpPrinter != nil {
 			a.helpPrinter()
 		}
-
-		var statusErr StatusCodeError
-		if errors.As(err, &statusErr) {
-			return statusErr.StatusCode()
-		}
-
-		return 0
+	default:
+		a.printError(err)
 	}
-
-	a.printError(err)
 
 	var statusErr StatusCodeError
 	if errors.As(err, &statusErr) {
 		return statusErr.StatusCode()
 	}
 
-	return 1
+	return exitCode
 }
 
 func (a *MultiCommandApp) fullCommandName(commandName string) string {
