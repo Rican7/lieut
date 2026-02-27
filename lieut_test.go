@@ -881,7 +881,7 @@ Run 'test --help' for usage.
 
 			args: []string{"test"},
 
-			wantedExitCode: 0,
+			wantedExitCode: ExitCodeUsageError,
 			wantedOut:      "",
 			wantedErrOut:   "Error: test init help error\n\n" + singleHelpOut,
 		},
@@ -892,7 +892,7 @@ Run 'test --help' for usage.
 
 			args: []string{"test"},
 
-			wantedExitCode: 0,
+			wantedExitCode: ExitCodeUsageError,
 			wantedOut:      "",
 			wantedErrOut:   singleHelpOut,
 		},
@@ -903,7 +903,7 @@ Run 'test --help' for usage.
 
 			args: []string{"test"},
 
-			wantedExitCode: 0,
+			wantedExitCode: ExitCodeUsageError,
 			wantedOut:      "",
 			wantedErrOut:   "Error: test exec help error\n\n" + singleHelpOut,
 		},
@@ -914,7 +914,7 @@ Run 'test --help' for usage.
 
 			args: []string{"test"},
 
-			wantedExitCode: 0,
+			wantedExitCode: ExitCodeUsageError,
 			wantedOut:      "",
 			wantedErrOut:   singleHelpOut,
 		},
@@ -1244,7 +1244,7 @@ Run 'test --help' for usage.
 
 			args: []string{testCommandInfo.Name},
 
-			wantedExitCode: 0,
+			wantedExitCode: ExitCodeUsageError,
 			wantedOut:      "",
 			wantedErrOut:   "Error: test init help error\n\n" + cmdHelpOut,
 		},
@@ -1255,7 +1255,7 @@ Run 'test --help' for usage.
 
 			args: []string{testCommandInfo.Name},
 
-			wantedExitCode: 0,
+			wantedExitCode: ExitCodeUsageError,
 			wantedOut:      "",
 			wantedErrOut:   cmdHelpOut,
 		},
@@ -1266,7 +1266,7 @@ Run 'test --help' for usage.
 
 			args: []string{testCommandInfo.Name},
 
-			wantedExitCode: 0,
+			wantedExitCode: ExitCodeUsageError,
 			wantedOut:      "",
 			wantedErrOut:   "Error: test exec help error\n\n" + cmdHelpOut,
 		},
@@ -1277,7 +1277,7 @@ Run 'test --help' for usage.
 
 			args: []string{testCommandInfo.Name},
 
-			wantedExitCode: 0,
+			wantedExitCode: ExitCodeUsageError,
 			wantedOut:      "",
 			wantedErrOut:   cmdHelpOut,
 		},

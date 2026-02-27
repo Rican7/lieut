@@ -441,7 +441,7 @@ func (a *app) handleError(err error) int {
 
 	switch {
 	case errors.Is(err, ErrHelpRequested):
-		exitCode = ExitCodeSuccess
+		exitCode = ExitCodeUsageError
 
 		if a.printError(err) {
 			fmt.Fprintln(a.errOut)
