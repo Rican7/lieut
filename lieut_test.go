@@ -683,7 +683,7 @@ func TestSingleCommandApp_Run(t *testing.T) {
 	ctxTestVal := "test context val"
 	ctx := context.WithValue(context.TODO(), ctxTestKey, ctxTestVal)
 	args := []string{"testarg1", "testarg2"}
-	wantedExitCode := 0
+	wantedExitCode := ExitCodeSuccess
 
 	initRan := false
 	initFn := func() error {
@@ -772,14 +772,14 @@ test vTest (%s/%s)
 		"version requested": {
 			args: []string{"--version"},
 
-			wantedExitCode: 0,
+			wantedExitCode: ExitCodeSuccess,
 			wantedOut:      fmt.Sprintf("test vTest (%s/%s)\n", runtime.GOOS, runtime.GOARCH),
 			wantedErrOut:   "",
 		},
 		"help requested": {
 			args: []string{"--help"},
 
-			wantedExitCode: 0,
+			wantedExitCode: ExitCodeSuccess,
 			wantedOut:      "",
 			wantedErrOut: fmt.Sprintf(`Usage: test testing
 
@@ -799,7 +799,7 @@ test vTest (%s/%s)
 			flags: flag.NewFlagSet("test", flag.ContinueOnError),
 			args:  []string{"--non-existent-flag=val"},
 
-			wantedExitCode: 2,
+			wantedExitCode: ExitCodeUsageError,
 			wantedOut:      "",
 			wantedErrOut: `Error: flag provided but not defined: -non-existent-flag
 
@@ -815,7 +815,7 @@ Run 'test --help' for usage.
 
 			args: []string{"test"},
 
-			wantedExitCode: 1,
+			wantedExitCode: ExitCodeError,
 			wantedOut:      "",
 			wantedErrOut:   "Error: test init error\n",
 		},
@@ -848,7 +848,7 @@ Run 'test --help' for usage.
 
 			args: []string{"test"},
 
-			wantedExitCode: 1,
+			wantedExitCode: ExitCodeError,
 			wantedOut:      "",
 			wantedErrOut:   "Error: test exec error\n",
 		},
@@ -993,7 +993,7 @@ func TestMultiCommandApp_Run(t *testing.T) {
 	ctxTestVal := "test context val"
 	ctx := context.WithValue(context.TODO(), ctxTestKey, ctxTestVal)
 	args := []string{testCommandInfo.Name, "testarg1", "testarg2"}
-	wantedExitCode := 0
+	wantedExitCode := ExitCodeSuccess
 
 	initRan := false
 	initFn := func() error {
@@ -1092,14 +1092,14 @@ test vTest (%s/%s)
 		"version requested": {
 			args: []string{"--version"},
 
-			wantedExitCode: 0,
+			wantedExitCode: ExitCodeSuccess,
 			wantedOut:      fmt.Sprintf("test vTest (%s/%s)\n", runtime.GOOS, runtime.GOARCH),
 			wantedErrOut:   "",
 		},
 		"help requested": {
 			args: []string{"--help"},
 
-			wantedExitCode: 0,
+			wantedExitCode: ExitCodeSuccess,
 			wantedOut:      "",
 			wantedErrOut: fmt.Sprintf(`Usage: test testing
 
@@ -1122,7 +1122,7 @@ test vTest (%s/%s)
 		"command help requested": {
 			args: []string{testCommandInfo.Name, "--help"},
 
-			wantedExitCode: 0,
+			wantedExitCode: ExitCodeSuccess,
 			wantedOut:      "",
 			wantedErrOut: fmt.Sprintf(`Usage: test testcommand args here...
 
@@ -1139,7 +1139,7 @@ test vTest (%s/%s)
 		"empty args": {
 			args: []string{},
 
-			wantedExitCode: 2,
+			wantedExitCode: ExitCodeUsageError,
 			wantedOut:      "",
 			wantedErrOut: fmt.Sprintf(`Usage: test testing
 
@@ -1163,7 +1163,7 @@ test vTest (%s/%s)
 			flags: flag.NewFlagSet("test", flag.ContinueOnError),
 			args:  []string{"--non-existent-flag=val"},
 
-			wantedExitCode: 2,
+			wantedExitCode: ExitCodeUsageError,
 			wantedOut:      "",
 			wantedErrOut: `Error: flag provided but not defined: -non-existent-flag
 
@@ -1179,7 +1179,7 @@ Run 'test --help' for usage.
 
 			args: []string{testCommandInfo.Name},
 
-			wantedExitCode: 1,
+			wantedExitCode: ExitCodeError,
 			wantedOut:      "",
 			wantedErrOut:   "Error: test init error\n",
 		},
@@ -1201,7 +1201,7 @@ Run 'test --help' for usage.
 
 			args: []string{testCommandInfo.Name},
 
-			wantedExitCode: 1,
+			wantedExitCode: ExitCodeError,
 			wantedOut:      "",
 			wantedErrOut:   "Error: test exec error\n",
 		},
@@ -1219,7 +1219,7 @@ Run 'test --help' for usage.
 		"unknown command": {
 			args: []string{"thiscommanddoesnotexist"},
 
-			wantedExitCode: 1,
+			wantedExitCode: ExitCodeError,
 			wantedOut:      "",
 			wantedErrOut:   "Error: unknown command 'thiscommanddoesnotexist'\n\nUsage: test testing\n\nRun 'test --help' for usage.\n",
 		},
@@ -1233,7 +1233,7 @@ Run 'test --help' for usage.
 			}(),
 			args: []string{"--testflag"},
 
-			wantedExitCode: 1,
+			wantedExitCode: ExitCodeError,
 			wantedOut:      "",
 			wantedErrOut:   "Error: unknown command '--testflag'\n\nUsage: test testing\n\nRun 'test --help' for usage.\n",
 		},
