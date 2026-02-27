@@ -91,8 +91,7 @@ lint-fix: install-deps install-deps-dev
 
 check: install-deps-dev format-check lint-check
 
-fix: install-deps-dev format-fix
-	go fix ./...
+fix: install-deps-dev format-fix lint-fix
 
 
 .PHONY: all clean build install-deps tools install-deps-dev update-deps test test-with-coverage test-with-coverage-formatted test-with-coverage-profile test-integrations test-all format-check format-fix lint-check lint-fix check fix
