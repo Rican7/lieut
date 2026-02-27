@@ -218,8 +218,9 @@ func (a *MultiCommandApp) CommandNames() []string {
 // Run takes a context and arguments, runs the expected command, and returns an
 // exit code.
 //
-// If the init function or command Executor returns a HelpRequestedError, the
-// help message will be displayed and the returned exit code will be 0.
+// If the init function or command Executor returns ErrHelpRequested, the help
+// message will be displayed and the returned exit code will be
+// ExitCodeUsageError.
 //
 // If the init function or command Executor returns a StatusCodeError, then the
 // returned exit code will match that of the value returned by
@@ -250,8 +251,9 @@ func (a *SingleCommandApp) Run(ctx context.Context, arguments []string) int {
 // Run takes a context and arguments, runs the expected command, and returns an
 // exit code.
 //
-// If the init function or command Executor returns a HelpRequestedError, the
-// help message will be displayed and the returned exit code will be 0.
+// If the init function or command Executor returns ErrHelpRequested, the help
+// message will be displayed and the returned exit code will be
+// ExitCodeUsageError.
 //
 // If the init function or command Executor returns a StatusCodeError, then the
 // returned exit code will match that of the value returned by
