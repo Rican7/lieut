@@ -744,6 +744,20 @@ func TestSingleCommandApp_Run_EmptyArgsProvided(t *testing.T) {
 }
 
 func TestSingleCommandApp_Run_AltPaths(t *testing.T) {
+	singleHelpOut := fmt.Sprintf(`Usage: test testing
+
+A test
+
+Options:
+
+  -help
+    	Display the help message
+  -version
+    	Display the application version
+
+test vTest (%s/%s)
+`, runtime.GOOS, runtime.GOARCH)
+
 	for testName, testData := range map[string]struct {
 		exec  Executor
 		init  func() error
@@ -859,6 +873,72 @@ Run 'test --help' for usage.
 			wantedExitCode: 217,
 			wantedOut:      "",
 			wantedErrOut:   "",
+		},
+		"initialize returns help requested error": {
+			init: func() error {
+				return ErrWithHelpRequested(errors.New("test init help error"))
+			},
+
+			args: []string{"test"},
+
+			wantedExitCode: 0,
+			wantedOut:      "",
+			wantedErrOut:   "Error: test init help error\n\n" + singleHelpOut,
+		},
+		"initialize returns help requested empty error": {
+			init: func() error {
+				return ErrWithHelpRequested(errors.New(""))
+			},
+
+			args: []string{"test"},
+
+			wantedExitCode: 0,
+			wantedOut:      "",
+			wantedErrOut:   singleHelpOut,
+		},
+		"execute returns help requested error": {
+			exec: func(ctx context.Context, arguments []string) error {
+				return ErrWithHelpRequested(errors.New("test exec help error"))
+			},
+
+			args: []string{"test"},
+
+			wantedExitCode: 0,
+			wantedOut:      "",
+			wantedErrOut:   "Error: test exec help error\n\n" + singleHelpOut,
+		},
+		"execute returns help requested empty error": {
+			exec: func(ctx context.Context, arguments []string) error {
+				return ErrWithHelpRequested(errors.New(""))
+			},
+
+			args: []string{"test"},
+
+			wantedExitCode: 0,
+			wantedOut:      "",
+			wantedErrOut:   singleHelpOut,
+		},
+		"execute returns help requested error wrapping status code error": {
+			exec: func(ctx context.Context, arguments []string) error {
+				return ErrWithHelpRequested(ErrWithStatusCode(errors.New("test exec help error"), 3))
+			},
+
+			args: []string{"test"},
+
+			wantedExitCode: 3,
+			wantedOut:      "",
+			wantedErrOut:   "Error: test exec help error\n\n" + singleHelpOut,
+		},
+		"execute returns status code error wrapping help requested error": {
+			exec: func(ctx context.Context, arguments []string) error {
+				return ErrWithStatusCode(ErrWithHelpRequested(errors.New("test exec help error")), 3)
+			},
+
+			args: []string{"test"},
+
+			wantedExitCode: 3,
+			wantedOut:      "",
+			wantedErrOut:   "Error: test exec help error\n\n" + singleHelpOut,
 		},
 	} {
 		t.Run(testName, func(t *testing.T) {
@@ -984,6 +1064,18 @@ func TestMultiCommandApp_Run_AltPaths(t *testing.T) {
 		Summary: "A test command",
 		Usage:   "args here...",
 	}
+
+	cmdHelpOut := fmt.Sprintf(`Usage: test testcommand args here...
+
+A test command
+
+Options:
+
+  -help
+    	Display the help message
+
+test vTest (%s/%s)
+`, runtime.GOOS, runtime.GOARCH)
 
 	for testName, testData := range map[string]struct {
 		flags        Flags
@@ -1144,6 +1236,72 @@ Run 'test --help' for usage.
 			wantedExitCode: 1,
 			wantedOut:      "",
 			wantedErrOut:   "Error: unknown command '--testflag'\n\nUsage: test testing\n\nRun 'test --help' for usage.\n",
+		},
+		"initialize returns help requested error": {
+			init: func() error {
+				return ErrWithHelpRequested(errors.New("test init help error"))
+			},
+
+			args: []string{testCommandInfo.Name},
+
+			wantedExitCode: 0,
+			wantedOut:      "",
+			wantedErrOut:   "Error: test init help error\n\n" + cmdHelpOut,
+		},
+		"initialize returns help requested empty error": {
+			init: func() error {
+				return ErrWithHelpRequested(errors.New(""))
+			},
+
+			args: []string{testCommandInfo.Name},
+
+			wantedExitCode: 0,
+			wantedOut:      "",
+			wantedErrOut:   cmdHelpOut,
+		},
+		"execute returns help requested error": {
+			exec: func(ctx context.Context, arguments []string) error {
+				return ErrWithHelpRequested(errors.New("test exec help error"))
+			},
+
+			args: []string{testCommandInfo.Name},
+
+			wantedExitCode: 0,
+			wantedOut:      "",
+			wantedErrOut:   "Error: test exec help error\n\n" + cmdHelpOut,
+		},
+		"execute returns help requested empty error": {
+			exec: func(ctx context.Context, arguments []string) error {
+				return ErrWithHelpRequested(errors.New(""))
+			},
+
+			args: []string{testCommandInfo.Name},
+
+			wantedExitCode: 0,
+			wantedOut:      "",
+			wantedErrOut:   cmdHelpOut,
+		},
+		"execute returns help requested error wrapping status code error": {
+			exec: func(ctx context.Context, arguments []string) error {
+				return ErrWithHelpRequested(ErrWithStatusCode(errors.New("test exec help error"), 3))
+			},
+
+			args: []string{testCommandInfo.Name},
+
+			wantedExitCode: 3,
+			wantedOut:      "",
+			wantedErrOut:   "Error: test exec help error\n\n" + cmdHelpOut,
+		},
+		"execute returns status code error wrapping help requested error": {
+			exec: func(ctx context.Context, arguments []string) error {
+				return ErrWithStatusCode(ErrWithHelpRequested(errors.New("test exec help error")), 3)
+			},
+
+			args: []string{testCommandInfo.Name},
+
+			wantedExitCode: 3,
+			wantedOut:      "",
+			wantedErrOut:   "Error: test exec help error\n\n" + cmdHelpOut,
 		},
 	} {
 		t.Run(testName, func(t *testing.T) {

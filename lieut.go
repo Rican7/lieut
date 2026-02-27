@@ -65,7 +65,8 @@ type app struct {
 	out    io.Writer
 	errOut io.Writer
 
-	init func() error
+	init        func() error
+	helpPrinter func() // Set per-run to display context-appropriate help
 }
 
 // SingleCommandApp is a runnable application that only has one command.
@@ -204,10 +205,15 @@ func (a *MultiCommandApp) CommandNames() []string {
 // Run takes a context and arguments, runs the expected command, and returns an
 // exit code.
 //
+// If the init function or command Executor returns a HelpRequestedError, the
+// help message will be displayed and the returned exit code will be 0.
+//
 // If the init function or command Executor returns a StatusCodeError, then the
 // returned exit code will match that of the value returned by
 // StatusCodeError.StatusCode().
 func (a *SingleCommandApp) Run(ctx context.Context, arguments []string) int {
+	a.helpPrinter = a.PrintHelp
+
 	if len(arguments) == 0 {
 		arguments = os.Args[1:]
 	}
@@ -230,6 +236,9 @@ func (a *SingleCommandApp) Run(ctx context.Context, arguments []string) int {
 
 // Run takes a context and arguments, runs the expected command, and returns an
 // exit code.
+//
+// If the init function or command Executor returns a HelpRequestedError, the
+// help message will be displayed and the returned exit code will be 0.
 //
 // If the init function or command Executor returns a StatusCodeError, then the
 // returned exit code will match that of the value returned by
@@ -269,6 +278,8 @@ func (a *MultiCommandApp) Run(ctx context.Context, arguments []string) int {
 	if !hasCommand {
 		return a.printUnknownCommand(commandName)
 	}
+
+	a.helpPrinter = func() { a.PrintHelp(commandName) }
 
 	if err := a.initialize(); err != nil {
 		return a.handleError(err)
@@ -413,6 +424,22 @@ func (a *app) printError(err error) bool {
 }
 
 func (a *app) handleError(err error) int {
+	if errors.Is(err, ErrHelpRequested) {
+		if a.printError(err) {
+			fmt.Fprintln(a.errOut)
+		}
+		if a.helpPrinter != nil {
+			a.helpPrinter()
+		}
+
+		var statusErr StatusCodeError
+		if errors.As(err, &statusErr) {
+			return statusErr.StatusCode()
+		}
+
+		return 0
+	}
+
 	a.printError(err)
 
 	var statusErr StatusCodeError
