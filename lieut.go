@@ -29,6 +29,19 @@ const (
 	DefaultParentCommandUsage = "<command> [arguments ...]"
 )
 
+// Exit codes.
+const (
+	// ExitCodeSuccess is the exit code returned when an app runs successfully.
+	ExitCodeSuccess = 0
+
+	// ExitCodeError is the exit code returned when an app encounters an error.
+	ExitCodeError = 1
+
+	// ExitCodeUsageError is the exit code returned when an app encounters a
+	// usage error, such as invalid flags or missing required arguments.
+	ExitCodeUsageError = 2
+)
+
 // Executor is a functional interface that defines an executable command.
 //
 // It takes a context and arguments, and returns an error (if any occurred).
@@ -220,11 +233,11 @@ func (a *SingleCommandApp) Run(ctx context.Context, arguments []string) int {
 
 	if err := a.flags.Parse(arguments); err != nil {
 		a.PrintUsageError(err)
-		return 2
+		return ExitCodeUsageError
 	}
 
 	if intercepted := a.intercept(a.flags); intercepted {
-		return 0
+		return ExitCodeSuccess
 	}
 
 	if err := a.initialize(); err != nil {
@@ -250,7 +263,7 @@ func (a *MultiCommandApp) Run(ctx context.Context, arguments []string) int {
 
 	if len(a.commands) == 0 || len(arguments) == 0 {
 		a.PrintHelp("")
-		return 2
+		return ExitCodeUsageError
 	}
 
 	flags := a.flags
@@ -268,11 +281,11 @@ func (a *MultiCommandApp) Run(ctx context.Context, arguments []string) int {
 
 	if err := flags.Parse(arguments); err != nil {
 		a.PrintUsageError(commandName, err)
-		return 2
+		return ExitCodeUsageError
 	}
 
 	if intercepted := a.intercept(flags, commandName); intercepted {
-		return 0
+		return ExitCodeSuccess
 	}
 
 	if !hasCommand {
@@ -405,7 +418,7 @@ func (a *app) execute(ctx context.Context, exec Executor, arguments []string) in
 		return a.handleError(err)
 	}
 
-	return 0
+	return ExitCodeSuccess
 }
 
 // printError takes an error, prints it with formatting, and then returns
@@ -424,11 +437,11 @@ func (a *app) printError(err error) bool {
 }
 
 func (a *app) handleError(err error) int {
-	exitCode := 1
+	exitCode := ExitCodeError
 
 	switch {
 	case errors.Is(err, ErrHelpRequested):
-		exitCode = 0
+		exitCode = ExitCodeSuccess
 
 		if a.printError(err) {
 			fmt.Fprintln(a.errOut)
@@ -477,7 +490,7 @@ func (a *app) printVersion(toErr bool) {
 func (a *MultiCommandApp) printUnknownCommand(commandName string) int {
 	a.PrintUsageError("", fmt.Errorf("unknown command '%s'", commandName))
 
-	return 1
+	return ExitCodeError
 }
 
 func (a *SingleCommandApp) printFullUsage() {
