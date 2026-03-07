@@ -48,12 +48,6 @@ type flagSet struct {
 	requestedVersion bool
 }
 
-func (f *flagSet) VisitAll(fn func(*flag.Flag)) {
-	if vf, ok := f.Flags.(visitAllFlagger); ok {
-		vf.VisitAll(fn)
-	}
-}
-
 func createDefaultFlags(name string) *flag.FlagSet {
 	return flag.NewFlagSet(name, flag.ContinueOnError)
 }
@@ -133,7 +127,6 @@ type flagInfo struct {
 	shorthand string
 	usage     string
 	defValue  string
-	value     flag.Value
 	typeName  string
 }
 
@@ -145,30 +138,19 @@ func (a *app) printFlagDefaults(flags Flags) {
 		inner = fs.Flags
 	}
 
-	var others []flagInfo
-	var version *flagInfo
-	var help *flagInfo
-
-	// Visit all flags and categorize them
-	visited := visitFlags(inner, func(f flagInfo) {
-		switch f.name {
-		case "help":
-			help = &f
-		case "version":
-			version = &f
-		default:
-			others = append(others, f)
-		}
-	})
+	// Visit and categorize flags for reordering
+	userFlags, version, help, visited := categorizeFlagsByName(inner)
 
 	if !visited {
-		// Fallback to default printing if we can't visit
+		if out := flags.Output(); out != nil {
+			fmt.Fprintf(out, "\nOptions:\n\n")
+		}
 		flags.PrintDefaults()
 		return
 	}
 
-	// Build the ordered list: others, then version, then help
-	all := others
+	// Order entries: user flags first, then version, then help last
+	all := userFlags
 	if version != nil {
 		all = append(all, *version)
 	}
@@ -180,12 +162,16 @@ func (a *app) printFlagDefaults(flags Flags) {
 		return
 	}
 
-	// Determine dash prefix and check for shorthands
+	// Determine dash prefix based on the flag implementation.
+	// Standard library flag uses single-dash, while other implementations
+	// (like spf13/pflag) use double-dash by convention.
 	dashPrefix := "--"
-	hasShorthands := false
 	if _, isStd := inner.(*flag.FlagSet); isStd {
 		dashPrefix = "-"
 	}
+
+	// Check if any flags have shorthands to decide on column layout
+	hasShorthands := false
 	for _, f := range all {
 		if f.shorthand != "" {
 			hasShorthands = true
@@ -193,50 +179,71 @@ func (a *app) printFlagDefaults(flags Flags) {
 		}
 	}
 
-	// Calculate flag entries and their max length for alignment
+	// Format flag names and calculate max width for tab-stop alignment
 	maxLen := 0
-	formattedParts := make([]string, len(all))
+	formattedNames := make([]string, len(all))
 	for i, f := range all {
-		var sb strings.Builder
-
-		// Shorthand column
-		if hasShorthands {
-			if f.shorthand != "" {
-				fmt.Fprintf(&sb, "-%s, ", f.shorthand)
-			} else {
-				sb.WriteString("    ")
-			}
-		}
-
-		// Flag name
-		sb.WriteString(dashPrefix)
-		sb.WriteString(f.name)
-
-		// Type name
-		if f.typeName != "" && f.typeName != "bool" {
-			sb.WriteString(" ")
-			sb.WriteString(f.typeName)
-		}
-
-		formattedParts[i] = sb.String()
-		if len(formattedParts[i]) > maxLen {
-			maxLen = len(formattedParts[i])
+		formattedNames[i] = formatFlagName(f, dashPrefix, hasShorthands)
+		if len(formattedNames[i]) > maxLen {
+			maxLen = len(formattedNames[i])
 		}
 	}
 
-	// Print the output with tab alignment
-	fmt.Fprintf(flags.Output(), "\nOptions:\n\n")
+	// Print standardized, tab-aligned options
+	out := flags.Output()
+	fmt.Fprintf(out, "\nOptions:\n\n")
 	for i, f := range all {
-		fmt.Fprintf(flags.Output(), "\t%-[1]*s\t%s", maxLen, formattedParts[i], f.usage)
+		fmt.Fprintf(out, "\t%-[1]*s\t%s", maxLen, formattedNames[i], f.usage)
+
+		// Print default value if it's non-zero
 		if f.defValue != "" && f.defValue != "false" && f.defValue != "0" && f.defValue != `""` {
 			def := f.defValue
-			if f.typeName == "string" && !strings.HasPrefix(def, `"`) {
+			if (f.typeName == "string" || f.typeName == "") && !strings.HasPrefix(def, `"`) {
 				def = fmt.Sprintf("%q", def)
 			}
-			fmt.Fprintf(flags.Output(), " (default %s)", def)
+			fmt.Fprintf(out, " (default %s)", def)
 		}
-		fmt.Fprintln(flags.Output())
+		fmt.Fprintln(out)
 	}
+}
+
+// categorizeFlagsByName visits all flags and separates them into user-defined
+// flags, and the special version and help flags.
+func categorizeFlagsByName(flags Flags) (userFlags []flagInfo, version, help *flagInfo, visited bool) {
+	visited = visitFlags(flags, func(f flagInfo) {
+		switch f.name {
+		case "help":
+			help = &f
+		case "version":
+			version = &f
+		default:
+			userFlags = append(userFlags, f)
+		}
+	})
+	return
+}
+
+// formatFlagName formats the name portion of a flag for display, including
+// shorthand, prefix, and type information.
+func formatFlagName(f flagInfo, dashPrefix string, hasShorthands bool) string {
+	var sb strings.Builder
+
+	if hasShorthands {
+		if f.shorthand != "" {
+			fmt.Fprintf(&sb, "-%s, ", f.shorthand)
+		} else {
+			sb.WriteString("    ")
+		}
+	}
+
+	sb.WriteString(dashPrefix)
+	sb.WriteString(f.name)
+
+	if f.typeName != "" && f.typeName != "bool" {
+		fmt.Fprintf(&sb, " %s", f.typeName)
+	}
+
+	return sb.String()
 }
 
 // visitFlags attempts to visit all flags in a generic way, supporting both
@@ -250,7 +257,6 @@ func visitFlags(flags Flags, fn func(flagInfo)) bool {
 				name:     f.Name,
 				usage:    usage,
 				defValue: f.DefValue,
-				value:    f.Value,
 				typeName: typeName,
 			})
 		})
@@ -261,7 +267,6 @@ func visitFlags(flags Flags, fn func(flagInfo)) bool {
 	v := reflect.ValueOf(flags)
 	m := v.MethodByName("VisitAll")
 	if !m.IsValid() {
-		// Try the underlying value if it's an interface or pointer
 		for v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface {
 			v = v.Elem()
 			m = v.MethodByName("VisitAll")
@@ -275,12 +280,17 @@ func visitFlags(flags Flags, fn func(flagInfo)) bool {
 		return false
 	}
 
-	// Create a generic callback for the VisitAll method
 	callbackType := m.Type().In(0)
+	if callbackType.Kind() != reflect.Func {
+		return false
+	}
+
 	callback := reflect.MakeFunc(callbackType, func(args []reflect.Value) []reflect.Value {
 		f := reflect.Indirect(args[0])
+		if f.Kind() != reflect.Struct {
+			return nil
+		}
 
-		// Helper to safely get a string field
 		getStr := func(name string) string {
 			field := f.FieldByName(name)
 			if field.IsValid() && field.Kind() == reflect.String {
@@ -297,13 +307,7 @@ func visitFlags(flags Flags, fn func(flagInfo)) bool {
 		}
 
 		if valField := f.FieldByName("Value"); valField.IsValid() {
-			val := valField.Interface()
-			if v, ok := val.(flag.Value); ok {
-				info.value = v
-			}
-
-			// Try to get the type name (common in libraries like pflag)
-			if tv, ok := val.(interface{ Type() string }); ok {
+			if tv, ok := valField.Interface().(interface{ Type() string }); ok {
 				info.typeName = tv.Type()
 			}
 		}
