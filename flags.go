@@ -257,7 +257,7 @@ func formatFlagName(f flagInfo, dashPrefix string, hasShorthands bool) string {
 // visitFlags attempts to visit all flags in a generic way, supporting both
 // the standard library and third-party libraries (via reflection).
 func visitFlags(flags Flags, fn func(flagInfo)) bool {
-	// 1. Try standard library visitor pattern
+	// Try standard library visitor pattern
 	if vf, ok := flags.(visitAllFlagger); ok {
 		vf.VisitAll(func(f *flag.Flag) {
 			typeName, usage := flag.UnquoteUsage(f)
@@ -271,7 +271,7 @@ func visitFlags(flags Flags, fn func(flagInfo)) bool {
 		return true
 	}
 
-	// 2. Try reflection for other implementations (like pflag)
+	// Otherwise, try reflection for other implementations (like pflag)
 	m := reflect.ValueOf(flags).MethodByName("VisitAll")
 	if !m.IsValid() || m.Type().NumIn() != 1 {
 		return false
