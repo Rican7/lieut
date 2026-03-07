@@ -43,6 +43,12 @@ type flagSet struct {
 	requestedVersion bool
 }
 
+func (f *flagSet) VisitAll(fn func(*flag.Flag)) {
+	if vf, ok := f.Flags.(visitAllFlagger); ok {
+		vf.VisitAll(fn)
+	}
+}
+
 func createDefaultFlags(name string) *flag.FlagSet {
 	return flag.NewFlagSet(name, flag.ContinueOnError)
 }
@@ -118,11 +124,143 @@ func (a *app) setupFlagSet(flagSet *flagSet, isRoot bool) {
 
 // printFlagDefaults wraps the writing of flag default values
 func (a *app) printFlagDefaults(flags Flags) {
+	if fs, ok := flags.(*flagSet); ok {
+		flags = fs.Flags
+	}
+
 	var buffer bytes.Buffer
 	originalOut := flags.Output()
 
 	flags.SetOutput(&buffer)
-	flags.PrintDefaults()
+
+	// Function to visit flags generically using reflection if necessary
+	visitAll := func(fn func(name, usage, defValue string, value flag.Value)) bool {
+		// Try standard interface first
+		if vf, ok := flags.(visitAllFlagger); ok {
+			vf.VisitAll(func(f *flag.Flag) {
+				fn(f.Name, f.Usage, f.DefValue, f.Value)
+			})
+			return true
+		}
+
+		// Use reflection for other implementations (like pflag)
+		v := reflect.ValueOf(flags)
+		m := v.MethodByName("VisitAll")
+		if !m.IsValid() {
+			// Try the underlying value if it's an interface or pointer
+			for v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface {
+				v = v.Elem()
+				m = v.MethodByName("VisitAll")
+				if m.IsValid() {
+					break
+				}
+			}
+		}
+
+		if !m.IsValid() {
+			return false
+		}
+
+		mType := m.Type()
+		if mType.NumIn() != 1 {
+			return false
+		}
+
+		callbackType := mType.In(0)
+		if callbackType.Kind() != reflect.Func || callbackType.NumIn() != 1 {
+			return false
+		}
+
+		callback := reflect.MakeFunc(callbackType, func(args []reflect.Value) []reflect.Value {
+			f := args[0]
+			for f.Kind() == reflect.Pointer || f.Kind() == reflect.Interface {
+				f = f.Elem()
+			}
+
+			// Helper to get string field if it exists
+			getString := func(name string) string {
+				field := f.FieldByName(name)
+				if field.IsValid() && field.Kind() == reflect.String {
+					return field.String()
+				}
+				return ""
+			}
+
+			name := getString("Name")
+			usage := getString("Usage")
+			defValue := getString("DefValue")
+
+			// Get Value field
+			var val flag.Value
+			valField := f.FieldByName("Value")
+			if valField.IsValid() {
+				if v, ok := valField.Interface().(flag.Value); ok {
+					val = v
+				}
+			}
+
+			if name != "" {
+				fn(name, usage, defValue, val)
+			}
+
+			return nil
+		})
+
+		m.Call([]reflect.Value{callback})
+		return true
+	}
+
+	type flagInfo struct {
+		name     string
+		usage    string
+		defValue string
+		value    flag.Value
+	}
+
+	var others []flagInfo
+	var version *flagInfo
+	var help []flagInfo
+
+	visited := visitAll(func(name, usage, defValue string, value flag.Value) {
+		info := flagInfo{name, usage, defValue, value}
+		switch name {
+		case "help", "h":
+			help = append(help, info)
+		case "version":
+			version = &info
+		default:
+			others = append(others, info)
+		}
+	})
+	if visited {
+		// Helper to print a group of flags using a temporary FlagSet to
+		// maintain the standard library's formatting
+		printGroup := func(group []flagInfo) {
+			if len(group) == 0 {
+				return
+			}
+
+			temp := flag.NewFlagSet("", flag.ContinueOnError)
+			temp.SetOutput(&buffer)
+
+			for _, f := range group {
+				temp.Var(f.value, f.name, f.usage)
+				temp.Lookup(f.name).DefValue = f.defValue
+			}
+
+			temp.PrintDefaults()
+		}
+
+		printGroup(others)
+		if version != nil {
+			printGroup([]flagInfo{*version})
+		}
+		printGroup(help)
+
+	} else {
+		// Fallback to default printing if we can't visit
+		flags.PrintDefaults()
+	}
 
 	if buffer.Len() > 0 {
 		// Only write a header if the printing of defaults actually wrote bytes
