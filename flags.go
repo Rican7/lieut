@@ -3,6 +3,7 @@
 package lieut
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -142,10 +143,17 @@ func (a *app) printFlagDefaults(flags Flags) {
 	userFlags, version, help, visited := categorizeFlagsByName(inner)
 
 	if !visited {
-		if out := flags.Output(); out != nil {
-			fmt.Fprintf(out, "\nOptions:\n\n")
-		}
+		var buffer bytes.Buffer
+		originalOut := flags.Output()
+
+		flags.SetOutput(&buffer)
 		flags.PrintDefaults()
+		flags.SetOutput(originalOut)
+
+		if buffer.Len() > 0 {
+			fmt.Fprintf(originalOut, "\nOptions:\n\n")
+			buffer.WriteTo(originalOut)
+		}
 		return
 	}
 
