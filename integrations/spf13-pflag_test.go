@@ -75,14 +75,10 @@ A test
 
 Options:
 
-  -my-flag string
-    	string My custom flag
-  -z-flag string
-    	string A flag at the end
-  -version
-    	Display the application version
-  -help
-    	Display the help message
+	    --my-flag string	My custom flag
+	    --z-flag string 	A flag at the end
+	    --version       	Display the application version
+	-h, --help          	Display the help message
 
 test vTest (%s/%s)
 `

@@ -3,11 +3,11 @@
 package lieut
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 	"io"
 	"reflect"
+	"strings"
 )
 
 // Flags defines an interface for command flags.
@@ -127,36 +127,33 @@ func (a *app) setupFlagSet(flagSet *flagSet, isRoot bool) {
 	}
 }
 
-// flagInfo normalizes flag data across different flag library implementations
+// flagInfo normalizes flag data across different flag library implementations.
 type flagInfo struct {
-	name     string
-	usage    string
-	defValue string
-	value    flag.Value
-	typeName string
+	name      string
+	shorthand string
+	usage     string
+	defValue  string
+	value     flag.Value
+	typeName  string
 }
 
-// printFlagDefaults wraps the writing of flag default values
+// printFlagDefaults wraps the writing of flag default values.
 func (a *app) printFlagDefaults(flags Flags) {
 	// Unwrap our internal flagSet if necessary
+	inner := flags
 	if fs, ok := flags.(*flagSet); ok {
-		flags = fs.Flags
+		inner = fs.Flags
 	}
-
-	var buffer bytes.Buffer
-	originalOut := flags.Output()
-
-	flags.SetOutput(&buffer)
 
 	var others []flagInfo
 	var version *flagInfo
-	var help []flagInfo
+	var help *flagInfo
 
 	// Visit all flags and categorize them
-	visited := visitFlags(flags, func(f flagInfo) {
+	visited := visitFlags(inner, func(f flagInfo) {
 		switch f.name {
-		case "help", "h":
-			help = append(help, f)
+		case "help":
+			help = &f
 		case "version":
 			version = &f
 		default:
@@ -164,51 +161,82 @@ func (a *app) printFlagDefaults(flags Flags) {
 		}
 	})
 
-	if visited {
-		// Helper to print a group of flags using a temporary FlagSet to
-		// maintain the standard library's formatting and alignment
-		printGroup := func(group []flagInfo) {
-			if len(group) == 0 {
-				return
-			}
-
-			temp := flag.NewFlagSet("", flag.ContinueOnError)
-			temp.SetOutput(&buffer)
-
-			for _, f := range group {
-				usage := f.usage
-				if f.typeName != "" && f.typeName != "bool" {
-					usage = fmt.Sprintf("`%s` %s", f.typeName, usage)
-				}
-
-				temp.Var(f.value, f.name, usage)
-				temp.Lookup(f.name).DefValue = f.defValue
-			}
-
-			temp.PrintDefaults()
-		}
-
-		printGroup(others)
-		if version != nil {
-			printGroup([]flagInfo{*version})
-		}
-		printGroup(help)
-
-	} else {
+	if !visited {
 		// Fallback to default printing if we can't visit
 		flags.PrintDefaults()
+		return
 	}
 
-	if buffer.Len() > 0 {
-		// Only write a header if the printing of defaults actually wrote bytes
-		fmt.Fprintf(originalOut, "\nOptions:\n\n")
-
-		// Write the buffered flag output
-		buffer.WriteTo(originalOut)
+	// Build the ordered list: others, then version, then help
+	all := others
+	if version != nil {
+		all = append(all, *version)
+	}
+	if help != nil {
+		all = append(all, *help)
 	}
 
-	// Restore the original output
-	flags.SetOutput(originalOut)
+	if len(all) == 0 {
+		return
+	}
+
+	// Determine dash prefix and check for shorthands
+	dashPrefix := "--"
+	hasShorthands := false
+	if _, isStd := inner.(*flag.FlagSet); isStd {
+		dashPrefix = "-"
+	}
+	for _, f := range all {
+		if f.shorthand != "" {
+			hasShorthands = true
+			break
+		}
+	}
+
+	// Calculate flag entries and their max length for alignment
+	maxLen := 0
+	formattedParts := make([]string, len(all))
+	for i, f := range all {
+		var sb strings.Builder
+
+		// Shorthand column
+		if hasShorthands {
+			if f.shorthand != "" {
+				fmt.Fprintf(&sb, "-%s, ", f.shorthand)
+			} else {
+				sb.WriteString("    ")
+			}
+		}
+
+		// Flag name
+		sb.WriteString(dashPrefix)
+		sb.WriteString(f.name)
+
+		// Type name
+		if f.typeName != "" && f.typeName != "bool" {
+			sb.WriteString(" ")
+			sb.WriteString(f.typeName)
+		}
+
+		formattedParts[i] = sb.String()
+		if len(formattedParts[i]) > maxLen {
+			maxLen = len(formattedParts[i])
+		}
+	}
+
+	// Print the output with tab alignment
+	fmt.Fprintf(flags.Output(), "\nOptions:\n\n")
+	for i, f := range all {
+		fmt.Fprintf(flags.Output(), "\t%-[1]*s\t%s", maxLen, formattedParts[i], f.usage)
+		if f.defValue != "" && f.defValue != "false" && f.defValue != "0" && f.defValue != `""` {
+			def := f.defValue
+			if f.typeName == "string" && !strings.HasPrefix(def, `"`) {
+				def = fmt.Sprintf("%q", def)
+			}
+			fmt.Fprintf(flags.Output(), " (default %s)", def)
+		}
+		fmt.Fprintln(flags.Output())
+	}
 }
 
 // visitFlags attempts to visit all flags in a generic way, supporting both
@@ -217,8 +245,14 @@ func visitFlags(flags Flags, fn func(flagInfo)) bool {
 	// 1. Try standard library visitor pattern
 	if vf, ok := flags.(visitAllFlagger); ok {
 		vf.VisitAll(func(f *flag.Flag) {
-			_, usage := flag.UnquoteUsage(f)
-			fn(flagInfo{f.Name, usage, f.DefValue, f.Value, ""})
+			typeName, usage := flag.UnquoteUsage(f)
+			fn(flagInfo{
+				name:     f.Name,
+				usage:    usage,
+				defValue: f.DefValue,
+				value:    f.Value,
+				typeName: typeName,
+			})
 		})
 		return true
 	}
@@ -228,7 +262,7 @@ func visitFlags(flags Flags, fn func(flagInfo)) bool {
 	m := v.MethodByName("VisitAll")
 	if !m.IsValid() {
 		// Try the underlying value if it's an interface or pointer
-		for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
+		for v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface {
 			v = v.Elem()
 			m = v.MethodByName("VisitAll")
 			if m.IsValid() {
@@ -246,8 +280,8 @@ func visitFlags(flags Flags, fn func(flagInfo)) bool {
 	callback := reflect.MakeFunc(callbackType, func(args []reflect.Value) []reflect.Value {
 		f := reflect.Indirect(args[0])
 
-		// Helper to safely get a string field or value
-		getString := func(name string) string {
+		// Helper to safely get a string field
+		getStr := func(name string) string {
 			field := f.FieldByName(name)
 			if field.IsValid() && field.Kind() == reflect.String {
 				return field.String()
@@ -255,16 +289,15 @@ func visitFlags(flags Flags, fn func(flagInfo)) bool {
 			return ""
 		}
 
-		// Extract flag data using reflection
 		info := flagInfo{
-			name:     getString("Name"),
-			usage:    getString("Usage"),
-			defValue: getString("DefValue"),
+			name:      getStr("Name"),
+			shorthand: getStr("Shorthand"),
+			usage:     getStr("Usage"),
+			defValue:  getStr("DefValue"),
 		}
 
 		if valField := f.FieldByName("Value"); valField.IsValid() {
 			val := valField.Interface()
-
 			if v, ok := val.(flag.Value); ok {
 				info.value = v
 			}

@@ -260,12 +260,9 @@ A test
 
 Options:
 
-  -testflag string
-    	A test flag (default "testval")
-  -version
-    	Display the application version
-  -help
-    	Display the help message
+	-testflag string	A test flag (default "testval")
+	-version        	Display the application version
+	-help           	Display the help message
 
 test vTest (%s/%s)
 `
@@ -298,12 +295,9 @@ Commands:
 
 Options:
 
-  -testflag string
-    	A test flag (default "testval")
-  -version
-    	Display the application version
-  -help
-    	Display the help message
+	-testflag string	A test flag (default "testval")
+	-version        	Display the application version
+	-help           	Display the help message
 
 test vTest (%s/%s)
 `
@@ -346,12 +340,9 @@ A test command
 
 Options:
 
-  -testcommandflag int
-    	A test command flag (default 5)
-  -testflag string
-    	A test flag (default "testval")
-  -help
-    	Display the help message
+	-testcommandflag int	A test command flag (default 5)
+	-testflag string    	A test flag (default "testval")
+	-help               	Display the help message
 
 test vTest (%s/%s)
 `
@@ -401,10 +392,8 @@ Commands:
 
 Options:
 
-  -version
-    	Display the application version
-  -help
-    	Display the help message
+	-version	Display the application version
+	-help   	Display the help message
 
 test vTest (%s/%s)
 `
@@ -750,10 +739,8 @@ A test
 
 Options:
 
-  -version
-    	Display the application version
-  -help
-    	Display the help message
+	-version	Display the application version
+	-help   	Display the help message
 
 test vTest (%s/%s)
 `, runtime.GOOS, runtime.GOARCH)
@@ -787,10 +774,8 @@ A test
 
 Options:
 
-  -version
-    	Display the application version
-  -help
-    	Display the help message
+	-version	Display the application version
+	-help   	Display the help message
 
 test vTest (%s/%s)
 `, runtime.GOOS, runtime.GOARCH),
@@ -1071,8 +1056,7 @@ A test command
 
 Options:
 
-  -help
-    	Display the help message
+	-help	Display the help message
 
 test vTest (%s/%s)
 `, runtime.GOOS, runtime.GOARCH)
@@ -1111,10 +1095,8 @@ Commands:
 
 Options:
 
-  -version
-    	Display the application version
-  -help
-    	Display the help message
+	-version	Display the application version
+	-help   	Display the help message
 
 test vTest (%s/%s)
 `, runtime.GOOS, runtime.GOARCH),
@@ -1130,8 +1112,7 @@ A test command
 
 Options:
 
-  -help
-    	Display the help message
+	-help	Display the help message
 
 test vTest (%s/%s)
 `, runtime.GOOS, runtime.GOARCH),
@@ -1151,10 +1132,8 @@ Commands:
 
 Options:
 
-  -version
-    	Display the application version
-  -help
-    	Display the help message
+	-version	Display the application version
+	-help   	Display the help message
 
 test vTest (%s/%s)
 `, runtime.GOOS, runtime.GOARCH),
