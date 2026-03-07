@@ -32,6 +32,11 @@ type lookupVarFlagger interface {
 	Var(value flag.Value, name string, usage string)
 }
 
+// visitAllFlagger defines an interface for visiting all set flags.
+//
+// This interface is specifically designed for compatibility with the Go
+// standard library's flag package. Other techniques (such as reflection) are
+// employed to support similar functionality in other flag packages.
 type visitAllFlagger interface {
 	VisitAll(fn func(*flag.Flag))
 }
@@ -122,8 +127,17 @@ func (a *app) setupFlagSet(flagSet *flagSet, isRoot bool) {
 	}
 }
 
+// flagInfo normalizes flag data across different flag library implementations
+type flagInfo struct {
+	name     string
+	usage    string
+	defValue string
+	value    flag.Value
+}
+
 // printFlagDefaults wraps the writing of flag default values
 func (a *app) printFlagDefaults(flags Flags) {
+	// Unwrap our internal flagSet if necessary
 	if fs, ok := flags.(*flagSet); ok {
 		flags = fs.Flags
 	}
@@ -133,105 +147,22 @@ func (a *app) printFlagDefaults(flags Flags) {
 
 	flags.SetOutput(&buffer)
 
-	// Function to visit flags generically using reflection if necessary
-	visitAll := func(fn func(name, usage, defValue string, value flag.Value)) bool {
-		// Try standard interface first
-		if vf, ok := flags.(visitAllFlagger); ok {
-			vf.VisitAll(func(f *flag.Flag) {
-				fn(f.Name, f.Usage, f.DefValue, f.Value)
-			})
-			return true
-		}
-
-		// Use reflection for other implementations (like pflag)
-		v := reflect.ValueOf(flags)
-		m := v.MethodByName("VisitAll")
-		if !m.IsValid() {
-			// Try the underlying value if it's an interface or pointer
-			for v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface {
-				v = v.Elem()
-				m = v.MethodByName("VisitAll")
-				if m.IsValid() {
-					break
-				}
-			}
-		}
-
-		if !m.IsValid() {
-			return false
-		}
-
-		mType := m.Type()
-		if mType.NumIn() != 1 {
-			return false
-		}
-
-		callbackType := mType.In(0)
-		if callbackType.Kind() != reflect.Func || callbackType.NumIn() != 1 {
-			return false
-		}
-
-		callback := reflect.MakeFunc(callbackType, func(args []reflect.Value) []reflect.Value {
-			f := args[0]
-			for f.Kind() == reflect.Pointer || f.Kind() == reflect.Interface {
-				f = f.Elem()
-			}
-
-			// Helper to get string field if it exists
-			getString := func(name string) string {
-				field := f.FieldByName(name)
-				if field.IsValid() && field.Kind() == reflect.String {
-					return field.String()
-				}
-				return ""
-			}
-
-			name := getString("Name")
-			usage := getString("Usage")
-			defValue := getString("DefValue")
-
-			// Get Value field
-			var val flag.Value
-			valField := f.FieldByName("Value")
-			if valField.IsValid() {
-				if v, ok := valField.Interface().(flag.Value); ok {
-					val = v
-				}
-			}
-
-			if name != "" {
-				fn(name, usage, defValue, val)
-			}
-
-			return nil
-		})
-
-		m.Call([]reflect.Value{callback})
-		return true
-	}
-
-	type flagInfo struct {
-		name     string
-		usage    string
-		defValue string
-		value    flag.Value
-	}
-
 	var others []flagInfo
 	var version *flagInfo
 	var help []flagInfo
 
-	visited := visitAll(func(name, usage, defValue string, value flag.Value) {
-		info := flagInfo{name, usage, defValue, value}
-		switch name {
+	// Visit all flags and categorize them
+	visited := visitFlags(flags, func(f flagInfo) {
+		switch f.name {
 		case "help", "h":
-			help = append(help, info)
+			help = append(help, f)
 		case "version":
-			version = &info
+			version = &f
 		default:
-			others = append(others, info)
+			others = append(others, f)
 		}
 	})
+
 	if visited {
 		// Helper to print a group of flags using a temporary FlagSet to
 		// maintain the standard library's formatting
@@ -272,4 +203,71 @@ func (a *app) printFlagDefaults(flags Flags) {
 
 	// Restore the original output
 	flags.SetOutput(originalOut)
+}
+
+// visitFlags attempts to visit all flags in a generic way, supporting both
+// the standard library and third-party libraries (via reflection).
+func visitFlags(flags Flags, fn func(flagInfo)) bool {
+	// 1. Try standard library visitor pattern
+	if vf, ok := flags.(visitAllFlagger); ok {
+		vf.VisitAll(func(f *flag.Flag) {
+			fn(flagInfo{f.Name, f.Usage, f.DefValue, f.Value})
+		})
+		return true
+	}
+
+	// 2. Try reflection for other implementations (like pflag)
+	v := reflect.ValueOf(flags)
+	m := v.MethodByName("VisitAll")
+	if !m.IsValid() {
+		// Try the underlying value if it's an interface or pointer
+		for v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface {
+			v = v.Elem()
+			m = v.MethodByName("VisitAll")
+			if m.IsValid() {
+				break
+			}
+		}
+	}
+
+	if !m.IsValid() || m.Type().NumIn() != 1 {
+		return false
+	}
+
+	// Create a generic callback for the VisitAll method
+	callbackType := m.Type().In(0)
+	callback := reflect.MakeFunc(callbackType, func(args []reflect.Value) []reflect.Value {
+		f := reflect.Indirect(args[0])
+
+		// Helper to safely get a string field or value
+		get := func(name string) string {
+			field := f.FieldByName(name)
+			if field.IsValid() && field.Kind() == reflect.String {
+				return field.String()
+			}
+			return ""
+		}
+
+		// Extract flag data using reflection
+		info := flagInfo{
+			name:     get("Name"),
+			usage:    get("Usage"),
+			defValue: get("DefValue"),
+		}
+
+		if valField := f.FieldByName("Value"); valField.IsValid() {
+			if val, ok := valField.Interface().(flag.Value); ok {
+				info.value = val
+			}
+		}
+
+		if info.name != "" {
+			fn(info)
+		}
+
+		return nil
+	})
+
+	m.Call([]reflect.Value{callback})
+	return true
 }
