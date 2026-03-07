@@ -133,6 +133,7 @@ type flagInfo struct {
 	usage    string
 	defValue string
 	value    flag.Value
+	typeName string
 }
 
 // printFlagDefaults wraps the writing of flag default values
@@ -165,7 +166,7 @@ func (a *app) printFlagDefaults(flags Flags) {
 
 	if visited {
 		// Helper to print a group of flags using a temporary FlagSet to
-		// maintain the standard library's formatting
+		// maintain the standard library's formatting and alignment
 		printGroup := func(group []flagInfo) {
 			if len(group) == 0 {
 				return
@@ -175,7 +176,12 @@ func (a *app) printFlagDefaults(flags Flags) {
 			temp.SetOutput(&buffer)
 
 			for _, f := range group {
-				temp.Var(f.value, f.name, f.usage)
+				usage := f.usage
+				if f.typeName != "" && f.typeName != "bool" {
+					usage = fmt.Sprintf("`%s` %s", f.typeName, usage)
+				}
+
+				temp.Var(f.value, f.name, usage)
 				temp.Lookup(f.name).DefValue = f.defValue
 			}
 
@@ -211,7 +217,8 @@ func visitFlags(flags Flags, fn func(flagInfo)) bool {
 	// 1. Try standard library visitor pattern
 	if vf, ok := flags.(visitAllFlagger); ok {
 		vf.VisitAll(func(f *flag.Flag) {
-			fn(flagInfo{f.Name, f.Usage, f.DefValue, f.Value})
+			_, usage := flag.UnquoteUsage(f)
+			fn(flagInfo{f.Name, usage, f.DefValue, f.Value, ""})
 		})
 		return true
 	}
@@ -221,7 +228,7 @@ func visitFlags(flags Flags, fn func(flagInfo)) bool {
 	m := v.MethodByName("VisitAll")
 	if !m.IsValid() {
 		// Try the underlying value if it's an interface or pointer
-		for v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface {
+		for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
 			v = v.Elem()
 			m = v.MethodByName("VisitAll")
 			if m.IsValid() {
@@ -240,7 +247,7 @@ func visitFlags(flags Flags, fn func(flagInfo)) bool {
 		f := reflect.Indirect(args[0])
 
 		// Helper to safely get a string field or value
-		get := func(name string) string {
+		getString := func(name string) string {
 			field := f.FieldByName(name)
 			if field.IsValid() && field.Kind() == reflect.String {
 				return field.String()
@@ -250,14 +257,21 @@ func visitFlags(flags Flags, fn func(flagInfo)) bool {
 
 		// Extract flag data using reflection
 		info := flagInfo{
-			name:     get("Name"),
-			usage:    get("Usage"),
-			defValue: get("DefValue"),
+			name:     getString("Name"),
+			usage:    getString("Usage"),
+			defValue: getString("DefValue"),
 		}
 
 		if valField := f.FieldByName("Value"); valField.IsValid() {
-			if val, ok := valField.Interface().(flag.Value); ok {
-				info.value = val
+			val := valField.Interface()
+
+			if v, ok := val.(flag.Value); ok {
+				info.value = v
+			}
+
+			// Try to get the type name (common in libraries like pflag)
+			if tv, ok := val.(interface{ Type() string }); ok {
+				info.typeName = tv.Type()
 			}
 		}
 

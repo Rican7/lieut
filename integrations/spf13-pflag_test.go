@@ -3,8 +3,9 @@ package integrations
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
-	"strings"
+	"runtime"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -68,6 +69,25 @@ func TestPFlag__WorkWithMultiCommandApps(t *testing.T) {
 }
 
 func TestPFlag_FlagOrder(t *testing.T) {
+	wantFormat := `Usage: test testing
+
+A test
+
+Options:
+
+  -my-flag string
+    	string My custom flag
+  -z-flag string
+    	string A flag at the end
+  -version
+    	Display the application version
+  -help
+    	Display the help message
+
+test vTest (%s/%s)
+`
+	want := fmt.Sprintf(wantFormat, runtime.GOOS, runtime.GOARCH)
+
 	flagSet := pflag.NewFlagSet("test", pflag.ContinueOnError)
 	flagSet.String("my-flag", "", "My custom flag")
 	flagSet.String("z-flag", "", "A flag at the end")
@@ -77,39 +97,9 @@ func TestPFlag_FlagOrder(t *testing.T) {
 
 	app.PrintHelp()
 
-	output := buf.String()
-	t.Logf("Output:\n%s", output)
+	got := buf.String()
 
-	// Check order of flags in "Options:" section
-	optionsIdx := strings.Index(output, "Options:")
-	if optionsIdx == -1 {
-		t.Fatal("Options section not found")
-	}
-
-	optionsSection := output[optionsIdx:]
-	helpIdx := strings.Index(optionsSection, "-help")
-	myFlagIdx := strings.Index(optionsSection, "-my-flag")
-	versionIdx := strings.Index(optionsSection, "-version")
-	zFlagIdx := strings.Index(optionsSection, "-z-flag")
-
-	if helpIdx == -1 || myFlagIdx == -1 || versionIdx == -1 || zFlagIdx == -1 {
-		t.Fatalf(
-			"Flags not found: help=%d, my-flag=%d, version=%d, z-flag=%d",
-			helpIdx,
-			myFlagIdx,
-			versionIdx,
-			zFlagIdx,
-		)
-	}
-
-	// We expect: myFlag < zFlag < version < help
-	if !(myFlagIdx < zFlagIdx && zFlagIdx < versionIdx && versionIdx < helpIdx) {
-		t.Errorf(
-			"Unexpected flag order. Expected others < version < help. Got my-flag at %d, z-flag at %d, version at %d, help at %d",
-			myFlagIdx,
-			zFlagIdx,
-			versionIdx,
-			helpIdx,
-		)
+	if got != want {
+		t.Errorf("app.PrintHelp gave %q, want %q", got, want)
 	}
 }
