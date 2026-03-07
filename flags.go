@@ -272,18 +272,7 @@ func visitFlags(flags Flags, fn func(flagInfo)) bool {
 	}
 
 	// 2. Try reflection for other implementations (like pflag)
-	v := reflect.ValueOf(flags)
-	m := v.MethodByName("VisitAll")
-	if !m.IsValid() {
-		for v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface {
-			v = v.Elem()
-			m = v.MethodByName("VisitAll")
-			if m.IsValid() {
-				break
-			}
-		}
-	}
-
+	m := reflect.ValueOf(flags).MethodByName("VisitAll")
 	if !m.IsValid() || m.Type().NumIn() != 1 {
 		return false
 	}
