@@ -1,8 +1,11 @@
 package integrations
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"io"
+	"runtime"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -63,4 +66,36 @@ func TestPFlag__WorkWithMultiCommandApps(t *testing.T) {
 	app.PrintUsageError("", nil)
 	app.PrintUsageError("foo", nil)
 	app.Run(context.TODO(), nil)
+}
+
+func TestPFlag_FlagOrder(t *testing.T) {
+	wantFormat := `Usage: test testing
+
+A test
+
+Options:
+
+	    --my-flag string	My custom flag
+	    --z-flag string 	A flag at the end
+	    --version       	Display the application version
+	-h, --help          	Display the help message
+
+test vTest (%s/%s)
+`
+	want := fmt.Sprintf(wantFormat, runtime.GOOS, runtime.GOARCH)
+
+	flagSet := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	flagSet.String("my-flag", "", "My custom flag")
+	flagSet.String("z-flag", "", "A flag at the end")
+
+	var buf bytes.Buffer
+	app := lieut.NewSingleCommandApp(testAppInfo, testNoOpExecutor, flagSet, &buf, &buf)
+
+	app.PrintHelp()
+
+	got := buf.String()
+
+	if got != want {
+		t.Errorf("app.PrintHelp gave %q, want %q", got, want)
+	}
 }
