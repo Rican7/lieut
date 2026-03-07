@@ -1,7 +1,10 @@
 package lieut
 
 import (
+	"bytes"
 	"context"
+	"flag"
+	"fmt"
 	"io"
 	"testing"
 )
@@ -73,4 +76,282 @@ func TestBogusFlags_WorkWithMultiCommandApps(t *testing.T) {
 	app.PrintUsageError("", nil)
 	app.PrintUsageError("foo", nil)
 	app.Run(context.TODO(), nil)
+}
+
+// verboseBogusFlags is a Flags implementation without VisitAll that produces
+// output in PrintDefaults, used to test the fallback output path.
+type verboseBogusFlags struct {
+	out io.Writer
+}
+
+func (v *verboseBogusFlags) Parse(arguments []string) error { return nil }
+func (v *verboseBogusFlags) Args() []string                 { return nil }
+func (v *verboseBogusFlags) Output() io.Writer              { return v.out }
+func (v *verboseBogusFlags) SetOutput(output io.Writer)     { v.out = output }
+func (v *verboseBogusFlags) PrintDefaults() {
+	fmt.Fprintln(v.out, "  -someflag\tA flag description")
+}
+
+// mockFlagValue implements an interface with a Type() method, similar to
+// third-party flag library value types (like spf13/pflag).
+type mockFlagValue string
+
+func (m mockFlagValue) Type() string { return string(m) }
+
+// mockReflectFlag mimics a third-party flag struct with exported fields, used
+// to exercise the reflection-based visitor in visitFlags.
+type mockReflectFlag struct {
+	Name      string
+	Shorthand string
+	Usage     string
+	DefValue  string
+	Value     mockFlagValue
+}
+
+// reflectableFlags is a Flags implementation with a VisitAll method that uses a
+// non-standard callback signature, exercising the reflection-based visitor path
+// in visitFlags.
+type reflectableFlags struct {
+	flags []mockReflectFlag
+	out   io.Writer
+}
+
+func (r *reflectableFlags) Parse(arguments []string) error { return nil }
+func (r *reflectableFlags) Args() []string                 { return nil }
+func (r *reflectableFlags) PrintDefaults()                 {}
+func (r *reflectableFlags) Output() io.Writer              { return r.out }
+func (r *reflectableFlags) SetOutput(output io.Writer)     { r.out = output }
+func (r *reflectableFlags) VisitAll(fn func(*mockReflectFlag)) {
+	for i := range r.flags {
+		fn(&r.flags[i])
+	}
+}
+
+// minimalReflectFlag is a flag struct with only a Name field, used to test the
+// reflection visitor when expected fields are missing.
+type minimalReflectFlag struct {
+	Name string
+}
+
+// minimalReflectableFlags is a Flags implementation that visits flags with only
+// a Name field, exercising the missing-field fallback in visitFlags.
+type minimalReflectableFlags struct {
+	flags []minimalReflectFlag
+	out   io.Writer
+}
+
+func (m *minimalReflectableFlags) Parse(arguments []string) error { return nil }
+func (m *minimalReflectableFlags) Args() []string                 { return nil }
+func (m *minimalReflectableFlags) PrintDefaults()                 {}
+func (m *minimalReflectableFlags) Output() io.Writer              { return m.out }
+func (m *minimalReflectableFlags) SetOutput(output io.Writer)     { m.out = output }
+func (m *minimalReflectableFlags) VisitAll(fn func(*minimalReflectFlag)) {
+	for i := range m.flags {
+		fn(&m.flags[i])
+	}
+}
+
+// nonFuncVisitAllFlags has a VisitAll method with a non-function parameter,
+// used to test the reflection guard against non-func callback types.
+type nonFuncVisitAllFlags struct {
+	bogusFlags
+}
+
+func (n *nonFuncVisitAllFlags) VisitAll(name string) {}
+
+// stringVisitAllFlags has a VisitAll method that passes strings instead of
+// structs, used to test the reflection guard against non-struct values.
+type stringVisitAllFlags struct {
+	bogusFlags
+}
+
+func (s *stringVisitAllFlags) VisitAll(fn func(string)) {
+	fn("test-flag")
+}
+
+func TestPrintFlagDefaults_FallbackWithOutput(t *testing.T) {
+	var buf bytes.Buffer
+	flags := &verboseBogusFlags{out: &buf}
+
+	app := NewSingleCommandApp(testAppInfo, testNoOpExecutor, nil, io.Discard, io.Discard)
+	app.printFlagDefaults(flags)
+
+	got := buf.String()
+	want := "\nOptions:\n\n  -someflag\tA flag description\n"
+
+	if got != want {
+		t.Errorf("printFlagDefaults fallback with output gave %q, want %q", got, want)
+	}
+}
+
+func TestPrintFlagDefaults_EmptyFlagSet(t *testing.T) {
+	var buf bytes.Buffer
+	emptyFlags := flag.NewFlagSet("empty", flag.ContinueOnError)
+	emptyFlags.SetOutput(&buf)
+
+	app := NewSingleCommandApp(testAppInfo, testNoOpExecutor, nil, io.Discard, &buf)
+	app.printFlagDefaults(emptyFlags)
+
+	if buf.String() != "" {
+		t.Errorf("printFlagDefaults with empty flagset gave %q, want empty", buf.String())
+	}
+}
+
+func TestFormatFlagName(t *testing.T) {
+	for testName, testData := range map[string]struct {
+		f             flagInfo
+		dashPrefix    string
+		hasShorthands bool
+		want          string
+	}{
+		"simple": {
+			f:          flagInfo{name: "verbose"},
+			dashPrefix: "-",
+			want:       "-verbose",
+		},
+		"with type": {
+			f:          flagInfo{name: "output", typeName: "string"},
+			dashPrefix: "--",
+			want:       "--output string",
+		},
+		"bool type omitted": {
+			f:          flagInfo{name: "verbose", typeName: "bool"},
+			dashPrefix: "--",
+			want:       "--verbose",
+		},
+		"with shorthand": {
+			f:             flagInfo{name: "help", shorthand: "h"},
+			dashPrefix:    "--",
+			hasShorthands: true,
+			want:          "-h, --help",
+		},
+		"without shorthand in shorthand layout": {
+			f:             flagInfo{name: "version"},
+			dashPrefix:    "--",
+			hasShorthands: true,
+			want:          "    --version",
+		},
+	} {
+		t.Run(testName, func(t *testing.T) {
+			got := formatFlagName(testData.f, testData.dashPrefix, testData.hasShorthands)
+			if got != testData.want {
+				t.Errorf("formatFlagName gave %q, want %q", got, testData.want)
+			}
+		})
+	}
+}
+
+func TestVisitFlags_Reflection(t *testing.T) {
+	flags := &reflectableFlags{
+		flags: []mockReflectFlag{
+			{Name: "verbose", Usage: "Enable verbose output", DefValue: "false", Value: "bool"},
+			{Name: "output", Shorthand: "o", Usage: "Output file", Value: "string"},
+		},
+	}
+
+	var visited []flagInfo
+	result := visitFlags(flags, func(f flagInfo) {
+		visited = append(visited, f)
+	})
+
+	if !result {
+		t.Fatal("visitFlags returned false for reflectable flags")
+	}
+
+	if len(visited) != 2 {
+		t.Fatalf("visitFlags visited %d flags, want 2", len(visited))
+	}
+
+	if visited[0].name != "verbose" || visited[0].typeName != "bool" {
+		t.Errorf("first flag: got name=%q typeName=%q, want name=%q typeName=%q",
+			visited[0].name, visited[0].typeName, "verbose", "bool")
+	}
+
+	if visited[1].shorthand != "o" || visited[1].typeName != "string" {
+		t.Errorf("second flag: got shorthand=%q typeName=%q, want shorthand=%q typeName=%q",
+			visited[1].shorthand, visited[1].typeName, "o", "string")
+	}
+}
+
+func TestVisitFlags_MissingFields(t *testing.T) {
+	flags := &minimalReflectableFlags{
+		flags: []minimalReflectFlag{
+			{Name: "test"},
+		},
+	}
+
+	var visited []flagInfo
+	result := visitFlags(flags, func(f flagInfo) {
+		visited = append(visited, f)
+	})
+
+	if !result {
+		t.Fatal("visitFlags returned false for minimal reflectable flags")
+	}
+
+	if len(visited) != 1 {
+		t.Fatalf("visitFlags visited %d flags, want 1", len(visited))
+	}
+
+	if visited[0].name != "test" {
+		t.Errorf("flag name: got %q, want %q", visited[0].name, "test")
+	}
+
+	if visited[0].shorthand != "" || visited[0].usage != "" || visited[0].defValue != "" {
+		t.Errorf("flag should have empty fields for missing struct fields, got %+v", visited[0])
+	}
+}
+
+func TestVisitFlags_NonFuncVisitAll(t *testing.T) {
+	flags := &nonFuncVisitAllFlags{}
+
+	result := visitFlags(flags, func(f flagInfo) {
+		t.Error("visitor should not be called")
+	})
+
+	if result {
+		t.Error("visitFlags returned true for non-func VisitAll")
+	}
+}
+
+func TestVisitFlags_NonStructCallback(t *testing.T) {
+	flags := &stringVisitAllFlags{}
+
+	var visited int
+	result := visitFlags(flags, func(f flagInfo) {
+		visited++
+	})
+
+	if !result {
+		t.Error("visitFlags returned false for string VisitAll")
+	}
+
+	if visited != 0 {
+		t.Errorf("visitFlags visited %d flags, want 0 (non-struct args should be skipped)", visited)
+	}
+}
+
+func TestReflectableFlags_HelpOutput(t *testing.T) {
+	var buf bytes.Buffer
+	flags := &reflectableFlags{
+		flags: []mockReflectFlag{
+			{Name: "output", Shorthand: "o", Usage: "Output file", Value: "string"},
+			{Name: "verbose", Usage: "Enable verbose output", Value: "bool"},
+			{Name: "help", Shorthand: "h", Usage: "Display the help message", Value: "bool"},
+		},
+		out: &buf,
+	}
+
+	app := NewSingleCommandApp(testAppInfo, testNoOpExecutor, nil, io.Discard, io.Discard)
+	app.printFlagDefaults(flags)
+
+	got := buf.String()
+	want := "\nOptions:\n\n" +
+		"\t-o, --output string\tOutput file\n" +
+		"\t    --verbose      \tEnable verbose output\n" +
+		"\t-h, --help         \tDisplay the help message\n"
+
+	if got != want {
+		t.Errorf("printFlagDefaults with reflectable flags gave %q, want %q", got, want)
+	}
 }
